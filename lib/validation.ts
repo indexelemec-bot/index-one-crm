@@ -16,5 +16,6 @@ export const proposalSchema = z.object({
   opportunityId: z.string().min(1),
   monthlyFee: z.coerce.number().positive("Los honorarios deben ser mayores que cero"),
   issueDate: z.string().min(1),
-  referenceIds: z.array(z.string()).length(3, "Selecciona exactamente tres referencias")
+  referenceIds: z.array(z.string()).length(3, "Selecciona exactamente tres referencias"),
+  format: z.enum(["docx", "pdf"]).default("docx")
 });

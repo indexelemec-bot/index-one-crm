@@ -3,6 +3,7 @@
 ## Referencia autoritativa
 
 - Archivo: `public/templates/propuesta-index-condo-2026.docx`
+- Maestro PDF sin datos variables: `public/templates/propuesta-index-condo-2026.pdf`
 - SHA-256: `513f8a48c93b77ec57a6cead10e75001c1e9acc1fb47069c136a88c74ea1ef68`
 - Render verificado: 6 páginas, sin recortes, solapamientos ni cambios de paginación.
 - Paquete: 20 partes OOXML. La generación conserva todas las partes y relaciones; solo modifica `word/document.xml`.
@@ -32,6 +33,8 @@
 
 Se conservan sin cambios: textos institucionales, alcance, Condofácil, encabezados, pies, condiciones, vigencia, próximos pasos, firma, imágenes, estilos, numeración, tema, fuentes, geometría de tablas y todas las relaciones. El generador trabaja sobre una copia en memoria y nunca sobrescribe el archivo maestro.
 
+La salida PDF se compone sobre un maestro de seis páginas derivado del DOCX corporativo. Ese maestro omite únicamente cliente, fecha, honorarios y las tres referencias; el servidor vuelve a dibujar esos campos con Carlito y los colores corporativos medidos. El script `scripts/create-proposal-pdf-template.mjs` permite regenerarlo de forma reproducible cuando cambie el DOCX autorizado.
+
 ## Puertas de fidelidad
 
 1. El SHA-256 del maestro debe coincidir antes de generar.
@@ -39,3 +42,4 @@ Se conservan sin cambios: textos institucionales, alcance, Condofácil, encabeza
 3. Solo `word/document.xml` puede diferir.
 4. Debe mantener 6 páginas después de sustituir valores de longitud representativa.
 5. Se debe renderizar y revisar visualmente una propuesta generada antes de publicar una nueva versión del generador.
+6. Las respuestas del endpoint deben declarar `application/pdf` para PDF y el MIME oficial de Word para DOCX.
