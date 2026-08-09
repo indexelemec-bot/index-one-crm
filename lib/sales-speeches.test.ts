@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { pipelineStages } from "@/lib/constants";
-import { availableSpeeches, personalizeSpeech, speechesForStage } from "@/lib/sales-speeches";
+import { availableSpeeches, personalizeSpeech, salesSpeeches, speechesForStage } from "@/lib/sales-speeches";
 import { accounts, opportunities, stakeholders } from "@/lib/mock-data";
 import type { SpeechUsage } from "@/types/domain";
 
@@ -23,5 +23,11 @@ describe("biblioteca de speeches B2B", () => {
     const text = personalizeSpeech(speechesForStage(opportunity.stage)[1], account, opportunity, contact);
     expect(text).toContain(account.name);
     expect(text).not.toContain("[Condominio]");
+  });
+
+  it("promociona INDEX CONDO y no INDEX ONE", () => {
+    const commercialCopy = salesSpeeches.map((speech) => speech.body).join(" ");
+    expect(commercialCopy).toContain("INDEX CONDO");
+    expect(commercialCopy).not.toContain("INDEX ONE");
   });
 });
