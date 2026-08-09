@@ -1,4 +1,4 @@
-import type { Account, CommercialReference, Opportunity, Proposal, Stakeholder, Task, UserProfile } from "@/types/domain";
+import type { Account, CommercialReference, Opportunity, Proposal, SalesReport, Stakeholder, Task, UserProfile } from "@/types/domain";
 
 export const users: UserProfile[] = [
   { id: "u1", fullName: "Wilmer Andújar", email: "admin@indexelemecsrl.com", role: "superadmin", active: true },
@@ -45,5 +45,10 @@ export const references: CommercialReference[] = [
 ];
 
 export const proposals: Proposal[] = [
-  { id: "p1", opportunityId: "o2", version: 1, clientName: "Residencial Altos del Este", issueDate: "2026-08-05", monthlyFee: 36000, referenceIds: ["r4", "r5", "r2"], status: "enviada", generatedAt: "2026-08-05T14:30:00-04:00" }
+  { id: "p1", opportunityId: "o2", version: 1, clientName: "Residencial Altos del Este", issueDate: "2026-08-05", monthlyFee: 39000, referenceIds: ["r4", "r5", "r2"], status: "enviada", generatedAt: "2026-08-05T14:30:00-04:00", fileFormat: "pdf" },
+  { id: "p2", opportunityId: "o2", version: 2, clientName: "Residencial Altos del Este", issueDate: "2026-08-08", monthlyFee: 36000, referenceIds: ["r4", "r5", "r2"], status: "generada", generatedAt: "2026-08-08T11:20:00-04:00", fileFormat: "docx", changeReason: "Rebaja solicitada durante la negociación" }
+];
+
+export const salesReports: SalesReport[] = [
+  { id: "sr1", opportunityId: "o2", accountId: "a2", sellerId: "u2", closedBy: "u1", closedAt: "2026-08-08T16:00:00-04:00", initialFee: 39000, finalFee: 36000, annualValue: 432000, commissionRate: 0.5, commissionBase: 36000, commissionAmount: 18000, commissionStatus: "pagadera", firstPaymentReceivedAt: "2026-08-08T16:00:00-04:00", contractReference: "Contrato INDEX-2026-008", notes: "Aprobado por la junta directiva.", createdAt: "2026-08-08T16:00:00-04:00" }
 ];

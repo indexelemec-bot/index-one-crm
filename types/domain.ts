@@ -4,6 +4,8 @@ export type StakeholderRole = "presidente" | "tesorero" | "secretario" | "miembr
 export type OpportunityStage = "prospecto_identificado" | "problema_detectado" | "contacto_decisor" | "diagnostico" | "solucion_recomendada" | "presentacion" | "propuesta" | "negociacion" | "aprobacion" | "contrato_transicion" | "cliente_activo" | "perdida";
 export type TaskStatus = "pendiente" | "completada" | "vencida";
 export type ProposalStatus = "borrador" | "generada" | "enviada" | "vista" | "aceptada" | "rechazada";
+export type ProposalFileFormat = "docx" | "pdf";
+export type CommissionStatus = "proyectada" | "ganada" | "pagadera" | "pagada" | "revertida";
 
 export interface UserProfile { id: string; fullName: string; email: string; role: UserRole; active: boolean; }
 export interface Account { id: string; name: string; accountType: AccountType; address: string; sector: string; city: string; units: number; towers: number; profile: string; ownerId: string; source: string; createdAt: string; }
@@ -11,4 +13,6 @@ export interface Stakeholder { id: string; accountId: string; fullName: string; 
 export interface Opportunity { id: string; accountId: string; stage: OpportunityStage; primaryProblem: string; impact: string; proposedSolution: string; monthlyFee: number; probability: number; nextAction: string; nextActionAt: string; ownerId: string; updatedAt: string; }
 export interface Task { id: string; opportunityId: string; title: string; dueAt: string; priority: "alta" | "media" | "baja"; status: TaskStatus; ownerId: string; outcome?: string; }
 export interface CommercialReference { id: string; clientName: string; location: string; units: number; accountType: AccountType; profile: string; approved: boolean; }
-export interface Proposal { id: string; opportunityId: string; version: number; clientName: string; issueDate: string; monthlyFee: number; referenceIds: string[]; status: ProposalStatus; generatedAt: string; }
+export interface Proposal { id: string; opportunityId: string; version: number; clientName: string; issueDate: string; monthlyFee: number; referenceIds: string[]; status: ProposalStatus; generatedAt: string; fileFormat: ProposalFileFormat; changeReason?: string; }
+export interface SalesReport { id: string; opportunityId: string; accountId: string; sellerId: string; closedBy: string; closedAt: string; initialFee: number; finalFee: number; annualValue: number; commissionRate: number; commissionBase: number; commissionAmount: number; commissionStatus: CommissionStatus; firstPaymentReceivedAt?: string; commissionPaidAt?: string; contractReference: string; notes?: string; createdAt: string; }
+export interface AssignmentHistory { id: string; opportunityId: string; previousOwnerId?: string; newOwnerId: string; changedBy: string; changeReason: string; changedAt: string; }
