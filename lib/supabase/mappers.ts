@@ -1,4 +1,4 @@
-import type { Account, AssignmentHistory, CommercialReference, Opportunity, Proposal, SalesReport, Stakeholder, Task, UserProfile } from "@/types/domain";
+import type { Account, AssignmentHistory, CommercialReference, Opportunity, Proposal, SalesReport, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
 
 export const mapProfile = (row: Record<string, unknown>): UserProfile => ({
   id: String(row.id), fullName: String(row.full_name), email: String(row.email ?? ""),
@@ -56,4 +56,11 @@ export const mapSalesReport = (row: Record<string, unknown>): SalesReport => ({
 export const mapAssignmentHistory = (row: Record<string, unknown>): AssignmentHistory => ({
   id: String(row.id), opportunityId: String(row.opportunity_id), previousOwnerId: row.previous_owner_id ? String(row.previous_owner_id) : undefined,
   newOwnerId: String(row.new_owner_id), changedBy: String(row.changed_by), changeReason: String(row.change_reason), changedAt: String(row.changed_at)
+});
+
+export const mapSpeechUsage = (row: Record<string, unknown>): SpeechUsage => ({
+  id: String(row.id), speechId: String(row.speech_id), opportunityId: String(row.opportunity_id),
+  stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, stage: row.stage as SpeechUsage["stage"],
+  userId: String(row.user_id), channel: row.channel as SpeechUsage["channel"], outcome: row.outcome as SpeechUsage["outcome"],
+  notes: row.notes ? String(row.notes) : undefined, nextAction: String(row.next_action), nextActionAt: String(row.next_action_at), usedAt: String(row.used_at)
 });
