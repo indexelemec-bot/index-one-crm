@@ -6,6 +6,8 @@ export type TaskStatus = "pendiente" | "completada" | "vencida";
 export type ProposalStatus = "borrador" | "generada" | "enviada" | "vista" | "aceptada" | "rechazada";
 export type ProposalFileFormat = "docx" | "pdf";
 export type CommissionStatus = "proyectada" | "ganada" | "pagadera" | "pagada" | "revertida";
+export type SpeechChannel = "llamada" | "reunion" | "email" | "whatsapp";
+export type SpeechOutcome = "sin_respuesta" | "interes" | "reunion" | "propuesta" | "objecion" | "cierre" | "no_interes";
 
 export interface UserProfile { id: string; fullName: string; email: string; role: UserRole; active: boolean; }
 export interface Account { id: string; name: string; accountType: AccountType; address: string; sector: string; city: string; units: number; towers: number; profile: string; ownerId: string; source: string; createdAt: string; }
@@ -16,3 +18,4 @@ export interface CommercialReference { id: string; clientName: string; location:
 export interface Proposal { id: string; opportunityId: string; version: number; clientName: string; issueDate: string; monthlyFee: number; referenceIds: string[]; status: ProposalStatus; generatedAt: string; fileFormat: ProposalFileFormat; changeReason?: string; }
 export interface SalesReport { id: string; opportunityId: string; accountId: string; sellerId: string; closedBy: string; closedAt: string; initialFee: number; finalFee: number; annualValue: number; commissionRate: number; commissionBase: number; commissionAmount: number; commissionStatus: CommissionStatus; firstPaymentReceivedAt?: string; commissionPaidAt?: string; contractReference: string; notes?: string; createdAt: string; }
 export interface AssignmentHistory { id: string; opportunityId: string; previousOwnerId?: string; newOwnerId: string; changedBy: string; changeReason: string; changedAt: string; }
+export interface SpeechUsage { id: string; speechId: string; opportunityId: string; stakeholderId?: string; stage: OpportunityStage; userId: string; channel: SpeechChannel; outcome: SpeechOutcome; notes?: string; nextAction: string; nextActionAt: string; usedAt: string; }
