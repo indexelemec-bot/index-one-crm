@@ -1,4 +1,4 @@
-import type { Account, AssignmentHistory, CommercialReference, Opportunity, Proposal, SalesReport, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
+import type { Account, AssignmentHistory, CommercialReference, Communication, Opportunity, Proposal, SalesReport, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
 
 export const mapProfile = (row: Record<string, unknown>): UserProfile => ({
   id: String(row.id), fullName: String(row.full_name), email: String(row.email ?? ""),
@@ -63,4 +63,16 @@ export const mapSpeechUsage = (row: Record<string, unknown>): SpeechUsage => ({
   stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, stage: row.stage as SpeechUsage["stage"],
   userId: String(row.user_id), channel: row.channel as SpeechUsage["channel"], outcome: row.outcome as SpeechUsage["outcome"],
   notes: row.notes ? String(row.notes) : undefined, nextAction: String(row.next_action), nextActionAt: String(row.next_action_at), usedAt: String(row.used_at)
+});
+
+export const mapCommunication = (row: Record<string, unknown>): Communication => ({
+  id: String(row.id), opportunityId: String(row.opportunity_id), proposalId: row.proposal_id ? String(row.proposal_id) : undefined,
+  stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, channel: row.channel as Communication["channel"],
+  direction: row.direction as Communication["direction"], fromAddress: String(row.from_address), toAddress: String(row.to_address),
+  subject: row.subject ? String(row.subject) : undefined, bodyText: String(row.body_text), templateKey: row.template_key ? String(row.template_key) : undefined,
+  provider: row.provider ? String(row.provider) : undefined, providerMessageId: row.provider_message_id ? String(row.provider_message_id) : undefined,
+  attachmentFormat: row.attachment_format === "pdf" || row.attachment_format === "docx" ? row.attachment_format : undefined,
+  status: String(row.status), errorMessage: row.error_message ? String(row.error_message) : undefined,
+  sentAt: row.sent_at ? String(row.sent_at) : undefined, deliveredAt: row.delivered_at ? String(row.delivered_at) : undefined,
+  openedAt: row.opened_at ? String(row.opened_at) : undefined, createdAt: String(row.created_at)
 });

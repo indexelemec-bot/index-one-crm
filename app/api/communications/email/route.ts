@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { Resend } from "resend";
 import { z } from "zod";
 import { ClientMessageEmail } from "@/emails/client-message";
+import { loadProposalDeliveryFile } from "@/lib/proposals/load-delivery-file";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
 const emailSchema = z.object({
   opportunityId: z.string().uuid(), stakeholderId: z.string().uuid(), templateKey: z.string().max(50).optional(),
-  subject: z.string().trim().min(4).max(180), body: z.string().trim().min(10).max(12000)
+  proposalId: z.string().uuid().optional(), subject: z.string().trim().min(4).max(180), body: z.string().trim().min(10).max(12000)
 });
 
 export async function POST(request: Request) {
@@ -25,15 +26,21 @@ export async function POST(request: Request) {
   const { data: profile } = await supabase.from("profiles").select("full_name,email").eq("id", authData.user.id).single();
   const clientName = Array.isArray(opportunity.accounts) ? opportunity.accounts[0]?.name : (opportunity.accounts as { name?: string } | null)?.name;
   const messageId = crypto.randomUUID();
-  const { error: queueError } = await supabase.from("communications").insert({ id: messageId, opportunity_id: opportunity.id, stakeholder_id: stakeholder.id, channel: "email", direction: "outbound", from_address: from, to_address: stakeholder.email, subject: parsed.data.subject, body_text: parsed.data.body, template_key: parsed.data.templateKey ?? null, provider: "resend", status: "queued", created_by: authData.user.id });
+  let attachment: Awaited<ReturnType<typeof loadProposalDeliveryFile>> | undefined;
+  if (parsed.data.proposalId) {
+    try { attachment = await loadProposalDeliveryFile(supabase, parsed.data.proposalId, opportunity.id); }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "No fue posible preparar la propuesta." }, { status: 400 }); }
+  }
+  const { error: queueError } = await supabase.from("communications").insert({ id: messageId, opportunity_id: opportunity.id, proposal_id: parsed.data.proposalId ?? null, stakeholder_id: stakeholder.id, channel: "email", direction: "outbound", from_address: from, to_address: stakeholder.email, subject: parsed.data.subject, body_text: parsed.data.body, template_key: parsed.data.templateKey ?? null, provider: "resend", attachment_format: attachment?.proposal.file_format ?? null, status: "queued", created_by: authData.user.id });
   if (queueError) return NextResponse.json({ error: "No se pudo registrar el correo en el expediente." }, { status: 500 });
   try {
     const resend = new Resend(apiKey);
-    const { data, error } = await resend.emails.send({ from, to: stakeholder.email, subject: parsed.data.subject, replyTo: process.env.EMAIL_REPLY_TO || profile?.email || authData.user.email, react: ClientMessageEmail({ clientName: clientName || "su condominio", recipientName: stakeholder.full_name, body: parsed.data.body, senderName: profile?.full_name || "Equipo Comercial INDEX ONE" }), tags: [{ name: "opportunity_id", value: opportunity.id }, { name: "communication_id", value: messageId }] });
+    const { data, error } = await resend.emails.send({ from, to: stakeholder.email, subject: parsed.data.subject, replyTo: process.env.EMAIL_REPLY_TO || profile?.email || authData.user.email, react: ClientMessageEmail({ clientName: clientName || "su condominio", recipientName: stakeholder.full_name, body: parsed.data.body, senderName: profile?.full_name || "Equipo Comercial INDEX ONE", attachmentName: attachment?.file.fileName }), attachments: attachment ? [{ filename: attachment.file.fileName, content: Buffer.from(attachment.file.bytes) }] : undefined, tags: [{ name: "opportunity_id", value: opportunity.id }, { name: "communication_id", value: messageId }, ...(parsed.data.proposalId ? [{ name: "proposal_id", value: parsed.data.proposalId }] : [])] });
     if (error || !data?.id) throw new Error(error?.message || "El proveedor no confirmó el envío.");
     const sentAt = new Date().toISOString();
     const { data: saved, error: saveError } = await supabase.from("communications").update({ provider_message_id: data.id, status: "sent", sent_at: sentAt }).eq("id", messageId).select("*").single();
     if (saveError) throw saveError;
+    if (parsed.data.proposalId) await supabase.from("proposals").update({ status: "enviada", sent_at: sentAt }).eq("id", parsed.data.proposalId);
     return NextResponse.json({ communication: saved });
   } catch (error) {
     const message = error instanceof Error ? error.message : "No fue posible enviar el correo.";
