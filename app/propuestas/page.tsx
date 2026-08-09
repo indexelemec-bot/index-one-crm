@@ -1,12 +1,14 @@
 "use client";
 
-import { Download, FileCheck2, FileText, History, Plus, Sparkles } from "lucide-react";
+import { Clock3, Download, FileCheck2, FileText, History, Mail, MessageCircle, Plus, Send, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useCrm } from "@/components/crm-provider";
 import { Modal, PageHeader } from "@/components/ui";
 import { formatCurrency } from "@/lib/constants";
 import { selectComparableReferences } from "@/lib/reference-matching";
-import type { Proposal, ProposalFileFormat } from "@/types/domain";
+import { createClient } from "@/lib/supabase/client";
+import { mapCommunication } from "@/lib/supabase/mappers";
+import type { Communication, Proposal, ProposalFileFormat } from "@/types/domain";
 
 function proposalHistory(proposals: Proposal[], opportunityId: string) {
   return proposals.filter((proposal) => proposal.opportunityId === opportunityId).sort((a, b) => a.version - b.version);
@@ -21,7 +23,7 @@ function variationLabel(proposal: Proposal, history: Proposal[]) {
 }
 
 export default function PropuestasPage() {
-  const { proposals, opportunities, accounts, references, addProposal, updateOpportunity } = useCrm();
+  const { proposals, opportunities, accounts, stakeholders, references, addProposal, updateOpportunity } = useCrm();
   const [open, setOpen] = useState(false);
   const [opportunityId, setOpportunityId] = useState("");
   const [fee, setFee] = useState(36000);
@@ -31,6 +33,14 @@ export default function PropuestasPage() {
   const [changeReason, setChangeReason] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState("");
+  const [deliveries, setDeliveries] = useState<Communication[]>([]);
+  const [deliveryProposal, setDeliveryProposal] = useState<Proposal>();
+  const [deliveryChannel, setDeliveryChannel] = useState<"email" | "whatsapp">("email");
+  const [deliveryStakeholder, setDeliveryStakeholder] = useState("");
+  const [deliverySubject, setDeliverySubject] = useState("");
+  const [deliveryBody, setDeliveryBody] = useState("");
+  const [deliveryError, setDeliveryError] = useState("");
+  const [delivering, setDelivering] = useState(false);
 
   const opportunity = opportunities.find((item) => item.id === opportunityId);
   const account = accounts.find((item) => item.id === opportunity?.accountId);
@@ -40,6 +50,15 @@ export default function PropuestasPage() {
   const priceChanged = Boolean(previous && previous.monthlyFee !== fee);
   const suggestions = useMemo(() => account ? selectComparableReferences(account, references, 6) : [], [account, references]);
   const orderedProposals = useMemo(() => [...proposals].sort((a, b) => b.generatedAt.localeCompare(a.generatedAt)), [proposals]);
+  const deliveryOpportunity = opportunities.find((item) => item.id === deliveryProposal?.opportunityId);
+  const deliveryContacts = stakeholders.filter((item) => item.accountId === deliveryOpportunity?.accountId);
+  const selectedDeliveryContact = deliveryContacts.find((item) => item.id === deliveryStakeholder);
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    void supabase.from("communications").select("*").not("proposal_id", "is", null).order("created_at", { ascending: false }).then(({ data }) => setDeliveries((data ?? []).map((row) => mapCommunication(row))));
+  }, []);
 
   function selectOpportunity(id: string) {
     setOpportunityId(id);
@@ -109,6 +128,47 @@ export default function PropuestasPage() {
     setSelected((values) => values.includes(id) ? values.filter((value) => value !== id) : values.length < 3 ? [...values, id] : values);
   }
 
+  function openDelivery(proposal: Proposal) {
+    const opportunity = opportunities.find((item) => item.id === proposal.opportunityId);
+    const contacts = stakeholders.filter((item) => item.accountId === opportunity?.accountId);
+    const preferred = contacts.find((item) => item.email) ?? contacts[0];
+    setDeliveryProposal(proposal); setDeliveryChannel("email"); setDeliveryStakeholder(preferred?.id ?? "");
+    setDeliverySubject(`Propuesta de administración — ${proposal.clientName} (v${proposal.version})`);
+    setDeliveryBody(`Estimado/a,\n\nCompartimos la versión ${proposal.version} de la propuesta de servicios de administración preparada para ${proposal.clientName}, basada en las necesidades conversadas.\n\nNos gustaría revisarla juntos para aclarar cualquier punto y acordar los próximos pasos.\n\nCordialmente,`);
+    setDeliveryError("");
+  }
+
+  function changeDeliveryChannel(channel: "email" | "whatsapp") {
+    setDeliveryChannel(channel);
+    const available = deliveryContacts.find((item) => channel === "email" ? item.email : item.phone);
+    if (available) setDeliveryStakeholder(available.id);
+  }
+
+  async function deliverProposal(event: React.FormEvent) {
+    event.preventDefault();
+    if (!deliveryProposal || !selectedDeliveryContact) return;
+    const popup = deliveryChannel === "whatsapp" ? window.open("about:blank", "_blank") : null;
+    setDelivering(true); setDeliveryError("");
+    try {
+      const endpoint = deliveryChannel === "email" ? "/api/communications/email" : "/api/communications/whatsapp";
+      const payload = deliveryChannel === "email"
+        ? { opportunityId: deliveryProposal.opportunityId, proposalId: deliveryProposal.id, stakeholderId: selectedDeliveryContact.id, templateKey: "propuesta", subject: deliverySubject, body: deliveryBody }
+        : { proposalId: deliveryProposal.id, stakeholderId: selectedDeliveryContact.id, body: deliveryBody };
+      const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error ?? "No fue posible preparar el envío.");
+      setDeliveries((items) => [mapCommunication(result.communication), ...items]);
+      if (deliveryChannel === "whatsapp") {
+        if (popup) popup.location.href = result.whatsappUrl; else window.open(result.whatsappUrl, "_blank", "noopener,noreferrer");
+        setToast("Propuesta preparada y abierta en WhatsApp. El intento quedó registrado.");
+      } else setToast("Propuesta enviada por correo con el archivo adjunto y registrada en el historial.");
+      setDeliveryProposal(undefined); setTimeout(() => setToast(""), 5000);
+    } catch (error) {
+      if (popup) popup.close();
+      setDeliveryError(error instanceof Error ? error.message : "No fue posible realizar el envío.");
+    } finally { setDelivering(false); }
+  }
+
   return <>
     <PageHeader eyebrow="Plantilla corporativa bloqueada" title="Propuestas comerciales" description="Genera Word o PDF y conserva cada versión para seguir la negociación y sus variaciones de precio.">
       <button className="button button-primary" onClick={start}><Plus size={18}/> Generar propuesta</button>
@@ -116,10 +176,11 @@ export default function PropuestasPage() {
 
     <div className="card table-wrap">
       <table className="table proposal-history-table">
-        <thead><tr><th>Cliente</th><th>Versión</th><th>Fecha</th><th>Honorarios</th><th>Variación vs. inicial</th><th>Motivo</th><th>Archivo</th></tr></thead>
+        <thead><tr><th>Cliente</th><th>Versión</th><th>Fecha</th><th>Honorarios</th><th>Variación vs. inicial</th><th>Motivo</th><th>Archivo</th><th>Envíos y reenvíos</th><th>Acción</th></tr></thead>
         <tbody>{orderedProposals.map((proposal) => {
           const versions = proposalHistory(proposals, proposal.opportunityId);
           const variation = proposal.monthlyFee - (versions[0]?.monthlyFee ?? proposal.monthlyFee);
+          const attempts = deliveries.filter((item) => item.proposalId === proposal.id);
           return <tr key={proposal.id}>
             <td><strong>{proposal.clientName}</strong><small><History size={11}/> {versions.length} {versions.length === 1 ? "versión" : "versiones"}</small></td>
             <td><span className="version-badge">v{proposal.version}</span></td>
@@ -128,6 +189,8 @@ export default function PropuestasPage() {
             <td><span className={`price-variation ${variation < 0 ? "discount" : variation > 0 ? "increase" : "initial"}`}>{variationLabel(proposal, versions)}</span></td>
             <td>{proposal.changeReason || <span className="muted-copy">Primera propuesta</span>}</td>
             <td><span className="file-format"><FileText size={13}/>{proposal.fileFormat === "pdf" ? "PDF" : "Word"}</span><small>{proposal.status}</small></td>
+            <td>{attempts.length === 0 ? <span className="muted-copy">Sin enviar</span> : <div className="proposal-deliveries">{attempts.map((attempt, index) => { const attemptNumber = attempts.length - index; return <span className={`proposal-delivery ${attempt.status === "failed" ? "failed" : ""}`} key={attempt.id}>{attempt.channel === "email" ? <Mail size={12}/> : <MessageCircle size={12}/>}<span><b>{attempt.channel === "email" ? "Correo" : "WhatsApp"}{attemptNumber > 1 ? ` · reenvío #${attemptNumber - 1}` : " · envío inicial"}</b><small><Clock3 size={10}/>{new Date(attempt.sentAt ?? attempt.createdAt).toLocaleString("es-DO")}</small></span></span>; })}</div>}</td>
+            <td><button className="button compact" onClick={() => openDelivery(proposal)}><Send size={14}/>{attempts.length ? "Reenviar" : "Enviar"}</button></td>
           </tr>;
         })}</tbody>
       </table>
@@ -170,6 +233,23 @@ export default function PropuestasPage() {
         <section className="proposal-preview"><div className="paper"><div className="paper-logo">⌂<br/>INDEX CONDO</div><h2>PROPUESTA DE ADMINISTRACIÓN<br/>DE EDIFICIOS Y CONDOMINIOS</h2><div className="orange">PLAN DE ADMINISTRACIÓN INTEGRAL</div><div className="paper-client">{account?.name || "Nombre del cliente"}</div><div className="paper-meta">Santo Domingo, República Dominicana<br/>{new Date(`${date}T12:00:00`).toLocaleDateString("es-DO", {day:"numeric",month:"long",year:"numeric"})}</div><div className="paper-sections"><div className="paper-line"/><div className="paper-line"/><div className="paper-line short"/><div className="paper-line"/><div className="paper-line short"/></div><div className="paper-price">{formatCurrency(fee)} / mes</div></div></section>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:7,marginTop:14,color:"#667085",fontSize:11}}><FileCheck2 size={15}/> El archivo maestro permanece sin cambios; cada propuesta se genera como una copia versionada.</div>
+    </Modal>}
+    {deliveryProposal && <Modal title={`${deliveries.some((item) => item.proposalId === deliveryProposal.id) ? "Reenviar" : "Enviar"} propuesta v${deliveryProposal.version}`} description={`El envío quedará vinculado a esta versión de ${deliveryProposal.clientName}.`} onClose={() => setDeliveryProposal(undefined)} wide>
+      <form onSubmit={deliverProposal}>
+        {deliveryError && <div className="sync-banner sync-error">{deliveryError}</div>}
+        <div className="delivery-channel-picker">
+          <button type="button" className={deliveryChannel === "email" ? "active" : ""} onClick={() => changeDeliveryChannel("email")}><Mail size={20}/><span><b>Correo</b><small>Archivo adjunto y estado de entrega</small></span></button>
+          <button type="button" className={deliveryChannel === "whatsapp" ? "active" : ""} onClick={() => changeDeliveryChannel("whatsapp")}><MessageCircle size={20}/><span><b>WhatsApp</b><small>Mensaje y enlace privado por 7 días</small></span></button>
+        </div>
+        <div className="form-grid">
+          <label className="field field-wide"><span>Contacto</span><select value={deliveryStakeholder} onChange={(event) => setDeliveryStakeholder(event.target.value)} required><option value="">Selecciona un destinatario</option>{deliveryContacts.map((contact) => <option value={contact.id} key={contact.id} disabled={deliveryChannel === "email" ? !contact.email : !contact.phone}>{contact.fullName} · {deliveryChannel === "email" ? contact.email || "sin correo" : contact.phone || "sin teléfono"}</option>)}</select></label>
+          {deliveryChannel === "email" && <label className="field field-wide"><span>Asunto</span><input value={deliverySubject} onChange={(event) => setDeliverySubject(event.target.value)} required/></label>}
+          <label className="field field-wide"><span>Mensaje</span><textarea className="email-body" value={deliveryBody} onChange={(event) => setDeliveryBody(event.target.value)} required/></label>
+          <div className="formal-note field-wide"><FileCheck2 size={16}/> Se enviará exactamente la versión {deliveryProposal.version} en {deliveryProposal.fileFormat === "pdf" ? "PDF" : "Word"}. Cada nuevo intento aparecerá por separado en el historial.</div>
+          {deliveryChannel === "whatsapp" && <div className="whatsapp-disclosure field-wide"><MessageCircle size={16}/> El CRM abrirá WhatsApp con el mensaje listo. Se registrará la apertura del canal; la confirmación final depende de pulsar “Enviar” en WhatsApp.</div>}
+        </div>
+        <div className="form-actions"><button type="button" className="button" onClick={() => setDeliveryProposal(undefined)}>Cancelar</button><button className="button button-primary" disabled={delivering || !selectedDeliveryContact || (deliveryChannel === "email" ? !selectedDeliveryContact.email : !selectedDeliveryContact.phone)}><Send size={16}/>{delivering ? "Preparando…" : deliveryChannel === "email" ? "Enviar correo" : "Abrir WhatsApp"}</button></div>
+      </form>
     </Modal>}
     {toast && <div className="toast">{toast}</div>}
   </>;
