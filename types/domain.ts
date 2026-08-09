@@ -1,0 +1,14 @@
+export type UserRole = "superadmin" | "gerencia_comercial" | "ejecutivo" | "administracion" | "consulta";
+export type AccountType = "condominio_existente" | "torre_residencial" | "proyecto_nuevo" | "constructora" | "desarrollador" | "aliado";
+export type StakeholderRole = "presidente" | "tesorero" | "secretario" | "miembro_junta" | "propietario_influyente" | "constructora" | "administrador_actual" | "otro";
+export type OpportunityStage = "prospecto_identificado" | "problema_detectado" | "contacto_decisor" | "diagnostico" | "solucion_recomendada" | "presentacion" | "propuesta" | "negociacion" | "aprobacion" | "contrato_transicion" | "cliente_activo" | "perdida";
+export type TaskStatus = "pendiente" | "completada" | "vencida";
+export type ProposalStatus = "borrador" | "generada" | "enviada" | "vista" | "aceptada" | "rechazada";
+
+export interface UserProfile { id: string; fullName: string; email: string; role: UserRole; active: boolean; }
+export interface Account { id: string; name: string; accountType: AccountType; address: string; sector: string; city: string; units: number; towers: number; profile: string; ownerId: string; source: string; createdAt: string; }
+export interface Stakeholder { id: string; accountId: string; fullName: string; role: StakeholderRole; phone: string; email: string; influence: number; position: "champion" | "neutral" | "opposed" | "unknown"; isDecisionMaker: boolean; }
+export interface Opportunity { id: string; accountId: string; stage: OpportunityStage; primaryProblem: string; impact: string; proposedSolution: string; monthlyFee: number; probability: number; nextAction: string; nextActionAt: string; ownerId: string; updatedAt: string; }
+export interface Task { id: string; opportunityId: string; title: string; dueAt: string; priority: "alta" | "media" | "baja"; status: TaskStatus; ownerId: string; outcome?: string; }
+export interface CommercialReference { id: string; clientName: string; location: string; units: number; accountType: AccountType; profile: string; approved: boolean; }
+export interface Proposal { id: string; opportunityId: string; version: number; clientName: string; issueDate: string; monthlyFee: number; referenceIds: string[]; status: ProposalStatus; generatedAt: string; }

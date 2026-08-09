@@ -1,0 +1,11 @@
+"use client";
+import Link from "next/link";
+import { Filter, GripVertical } from "lucide-react";
+import { useState } from "react";
+import { useCrm } from "@/components/crm-provider";
+import { PageHeader } from "@/components/ui";
+import { formatCurrency, pipelineStages, stageLabels } from "@/lib/constants";
+import { canSeeOpportunity } from "@/lib/permissions";
+import type { OpportunityStage } from "@/types/domain";
+
+export default function EmbudoPage(){const {opportunities,accounts,currentUser,updateOpportunity}=useCrm();const [dragged,setDragged]=useState<string|null>(null);const visible=opportunities.filter((o)=>canSeeOpportunity(currentUser,o)&&o.stage!=="perdida");function drop(stage:OpportunityStage){if(dragged)updateOpportunity(dragged,{stage});setDragged(null)}return <><PageHeader eyebrow="Venta consultiva" title="Embudo de soluciones" description="El avance representa comprensión del problema, diagnóstico, solución recomendada y aprobación; no implementación de sistemas."><button className="button"><Filter size={17}/> Filtrar cartera</button></PageHeader><div className="kanban">{pipelineStages.map((stage)=><section className="kanban-column" key={stage} onDragOver={(e)=>e.preventDefault()} onDrop={()=>drop(stage)}><header className="kanban-head"><b>{stageLabels[stage]}</b><span className="count">{visible.filter((o)=>o.stage===stage).length}</span></header>{visible.filter((o)=>o.stage===stage).map((opportunity)=>{const account=accounts.find((a)=>a.id===opportunity.accountId)!;return <article className="deal" key={opportunity.id} draggable onDragStart={()=>setDragged(opportunity.id)}><div style={{display:"flex",justifyContent:"space-between",gap:8}}><Link href={`/prospectos/${account.id}`}><h3>{account.name}</h3></Link><GripVertical size={15} color="#a6b1bd"/></div><p>{opportunity.primaryProblem}</p><div className="deal-value">{formatCurrency(opportunity.monthlyFee)} <small>/mes</small></div><div className="deal-meta"><span>{account.units} unidades</span><b>{opportunity.probability}%</b></div><div className="progress" style={{width:"100%"}}><span style={{width:`${opportunity.probability}%`}}/></div><div className="deal-action">Próximo: {opportunity.nextAction}</div></article>})}</section>)}</div></>}
