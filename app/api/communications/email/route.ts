@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
+const commercialReplyTo = "ventas@indexelemecsrl.com";
+
 const emailSchema = z.object({
   opportunityId: z.string().uuid(), stakeholderId: z.string().uuid(), templateKey: z.string().max(50).optional(),
   proposalId: z.string().uuid().optional(), subject: z.string().trim().min(4).max(180), body: z.string().trim().min(10).max(12000)
@@ -35,7 +37,7 @@ export async function POST(request: Request) {
   if (queueError) return NextResponse.json({ error: "No se pudo registrar el correo en el expediente." }, { status: 500 });
   try {
     const resend = new Resend(apiKey);
-    const { data, error } = await resend.emails.send({ from, to: stakeholder.email, subject: parsed.data.subject, replyTo: process.env.EMAIL_REPLY_TO || profile?.email || authData.user.email, react: ClientMessageEmail({ clientName: clientName || "su condominio", recipientName: stakeholder.full_name, body: parsed.data.body, senderName: profile?.full_name || "Equipo Comercial INDEX ONE", attachmentName: attachment?.file.fileName }), attachments: attachment ? [{ filename: attachment.file.fileName, content: Buffer.from(attachment.file.bytes) }] : undefined, tags: [{ name: "opportunity_id", value: opportunity.id }, { name: "communication_id", value: messageId }, ...(parsed.data.proposalId ? [{ name: "proposal_id", value: parsed.data.proposalId }] : [])] });
+    const { data, error } = await resend.emails.send({ from, to: stakeholder.email, subject: parsed.data.subject, replyTo: process.env.EMAIL_REPLY_TO || commercialReplyTo, react: ClientMessageEmail({ clientName: clientName || "su condominio", recipientName: stakeholder.full_name, body: parsed.data.body, senderName: profile?.full_name || "Equipo Comercial INDEX CONDO", attachmentName: attachment?.file.fileName }), attachments: attachment ? [{ filename: attachment.file.fileName, content: Buffer.from(attachment.file.bytes) }] : undefined, tags: [{ name: "opportunity_id", value: opportunity.id }, { name: "communication_id", value: messageId }, ...(parsed.data.proposalId ? [{ name: "proposal_id", value: parsed.data.proposalId }] : [])] });
     if (error || !data?.id) throw new Error(error?.message || "El proveedor no confirmó el envío.");
     const sentAt = new Date().toISOString();
     const { data: saved, error: saveError } = await supabase.from("communications").update({ provider_message_id: data.id, status: "sent", sent_at: sentAt }).eq("id", messageId).select("*").single();
