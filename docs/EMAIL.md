@@ -1,10 +1,11 @@
 # Correo comercial de INDEX CONDO
 
-El CRM envía correos transaccionales mediante Resend y registra cada intento en Supabase. Las respuestas se centralizan en el buzón `ventas@indexelemecsrl.com`, alojado en Private Email.
+El CRM envía correos mediante el SMTP autenticado de Private Email y registra cada intento en Supabase. Las respuestas se centralizan en el buzón `ventas@indexelemecsrl.com`, alojado en el mismo proveedor.
 
 ## Arquitectura elegida
 
-- **Salida desde el CRM:** Resend, porque permite adjuntar propuestas, registrar el identificador del mensaje y recibir estados de entrega, apertura, rebote y fallo.
+- **Salida inmediata desde el CRM:** SMTP autenticado de Private Email, sin cambios de DNS. Permite adjuntar propuestas y registrar envíos exitosos o fallidos.
+- **Salida futura:** Resend se conserva como alternativa para habilitar estados de entrega, apertura, rebote y fallo cuando el dominio pueda verificarse.
 - **Respuesta del cliente:** Private Email recibe las respuestas en `ventas@indexelemecsrl.com`.
 - **Correo entrante en el CRM:** se conectará posteriormente por IMAP para incorporar las respuestas al expediente comercial.
 
@@ -20,6 +21,11 @@ No se usa `admincondo@indexelemecsrl.com` para la comunicación comercial.
 La contraseña del buzón debe guardarse únicamente como secreto del proveedor correspondiente; nunca debe añadirse al repositorio ni compartirse en conversaciones.
 
 ## Configuración de producción
+
+1. Guardar `PRIVATE_EMAIL_SMTP_PASSWORD` como variable sensible únicamente en Production dentro de Vercel.
+2. El CRM usa `mail.privateemail.com`, puerto `465`, SSL/TLS y el usuario `ventas@indexelemecsrl.com`. Los demás datos no son secretos y están definidos en el servidor.
+
+## Activación futura de Resend
 
 1. Crear o conectar una cuenta de Resend al proyecto de Vercel.
 2. Verificar el dominio `indexelemecsrl.com` en Resend mediante los registros SPF y DKIM que entregue el proveedor de DNS. Resend usa el subdominio `send`, por lo que esta configuración puede convivir con el correo entrante de Private Email.
@@ -40,6 +46,7 @@ La contraseña del buzón debe guardarse únicamente como secreto del proveedor 
 - Propuestas Word o PDF adjuntas desde el módulo de Propuestas.
 - Remitente corporativo y respuesta centralizada.
 - Historial por cliente, destinatario, propuesta, fecha y estado.
-- Webhooks firmados para entrega, apertura, rebote, fallo y queja.
+- Registro inmediato de envío exitoso o fallido mediante Private Email.
+- Webhooks firmados para entrega, apertura, rebote, fallo y queja cuando Resend esté activo.
 
 La recepción y lectura de respuestas dentro del CRM requiere una segunda etapa de correo entrante. Mientras se implementa, las respuestas llegan al buzón `ventas@indexelemecsrl.com`.
