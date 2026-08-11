@@ -1,0 +1,6 @@
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+const schema = z.object({ versionId: z.string().uuid() });
+export async function POST(request: Request) { const parsed=schema.safeParse(await request.json().catch(()=>null));if(!parsed.success)return NextResponse.json({error:"Versión inválida."},{status:400});const supabase=await createClient();const {data:auth}=await supabase?.auth.getUser()??{data:{user:null}};if(!supabase||!auth.user)return NextResponse.json({error:"Sesión no disponible."},{status:401});const {data:version}=await supabase.from("contract_versions").select("file_path").eq("id",parsed.data.versionId).single();if(!version)return NextResponse.json({error:"Versión no disponible."},{status:404});const url=process.env.NEXT_PUBLIC_SUPABASE_URL;const key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!url||!key)return NextResponse.json({error:"Almacenamiento no configurado."},{status:503});const admin=createAdminClient(url,key,{auth:{autoRefreshToken:false,persistSession:false}});const {data,error}=await admin.storage.from("contract-files").createSignedUrl(version.file_path,60*15);return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({signedUrl:data.signedUrl});}

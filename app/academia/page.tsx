@@ -1,5 +1,5 @@
 "use client";
-import { BookOpenCheck, Check, CheckCircle2, Clipboard, MessageCircleQuestion, ShieldCheck, Target } from "lucide-react";
+import { BookOpenCheck, CalendarClock, Check, CheckCircle2, Clipboard, MessageCircleQuestion, ShieldCheck, Target } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui";
 import { salesTechniques, stagePlaybook } from "@/lib/sales-playbook";
@@ -14,6 +14,7 @@ export default function AcademiaPage() {
   async function copy(id: string, text: string) { await navigator.clipboard.writeText(text); setCopied(id); window.setTimeout(() => setCopied(""), 1600); }
 
   return <><PageHeader eyebrow="Formación continua" title="Academia Comercial B2B" description="Guiones por etapa y técnicas consultivas para generar decisiones claras, sostenibles y sin presión engañosa."/>
+    <div className="sync-banner"><CalendarClock size={16}/> Revisión bimestral automatizada: la IA analiza uso de speeches, resultados, tareas y cierres; genera un borrador que gerencia debe aprobar antes de publicar cambios.</div>
     <section className="academy-principles card"><div><ShieldCheck size={30}/><span><b>Persuasión ética</b><small>Claridad, evidencia, escucha y reciprocidad. Nunca urgencia falsa, promesas inventadas ni manipulación.</small></span></div><div><Target size={30}/><span><b>Resultado compartido</b><small>El cierre correcto ocurre cuando la solución resuelve un problema real y ambas partes conocen el próximo paso.</small></span></div></section>
     <section className="card stage-roadmap"><div className="section-head"><div><h2>Guía de ejecución por etapa</h2><p>Objetivo, acciones y criterio de avance para que cada vendedor sepa qué hacer.</p></div></div><div className="roadmap-scroll">{pipelineStages.map((item) => <article key={item}><span>{stageLabels[item]}</span><b>{stagePlaybook[item].objective}</b><small>{stagePlaybook[item].exitCriteria.join(" · ")}</small></article>)}</div></section>
     <div className="toolbar academy-search"><label className="search"><BookOpenCheck size={18}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar speech, etapa, técnica o situación…"/></label><select className="filter-select" value={stage} onChange={(event) => setStage(event.target.value as "all" | OpportunityStage)}><option value="all">Todas las etapas</option>{pipelineStages.map((item) => <option value={item} key={item}>{stageLabels[item]}</option>)}</select></div>
