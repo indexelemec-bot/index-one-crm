@@ -1,7 +1,7 @@
 "use client";
 
 import { Clock3, Download, FileCheck2, FileText, History, Mail, MessageCircle, Plus, Send, Sparkles } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCrm } from "@/components/crm-provider";
 import { Modal, PageHeader } from "@/components/ui";
 import { formatCurrency } from "@/lib/constants";
@@ -23,7 +23,7 @@ function variationLabel(proposal: Proposal, history: Proposal[]) {
 }
 
 export default function PropuestasPage() {
-  const { proposals, opportunities, accounts, stakeholders, references, addProposal, updateOpportunity } = useCrm();
+  const { proposals, opportunities, accounts, stakeholders, references, addProposal, updateOpportunity, refreshData } = useCrm();
   const [open, setOpen] = useState(false);
   const [opportunityId, setOpportunityId] = useState("");
   const [fee, setFee] = useState(36000);
@@ -54,11 +54,19 @@ export default function PropuestasPage() {
   const deliveryContacts = stakeholders.filter((item) => item.accountId === deliveryOpportunity?.accountId);
   const selectedDeliveryContact = deliveryContacts.find((item) => item.id === deliveryStakeholder);
 
-  useEffect(() => {
+  const loadDeliveries = useCallback(async () => {
     const supabase = createClient();
     if (!supabase) return;
-    void supabase.from("communications").select("*").not("proposal_id", "is", null).order("created_at", { ascending: false }).then(({ data }) => setDeliveries((data ?? []).map((row) => mapCommunication(row))));
+    const { data } = await supabase.from("communications").select("*").not("proposal_id", "is", null).order("created_at", { ascending: false });
+    setDeliveries((data ?? []).map((row) => mapCommunication(row)));
   }, []);
+
+  useEffect(() => {
+    void loadDeliveries();
+    const refresh = () => { if (document.visibilityState === "visible") void loadDeliveries(); };
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, [loadDeliveries]);
 
   function selectOpportunity(id: string) {
     setOpportunityId(id);
@@ -157,10 +165,11 @@ export default function PropuestasPage() {
       const response = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error ?? "No fue posible preparar el envío.");
-      setDeliveries((items) => [mapCommunication(result.communication), ...items]);
+      setDeliveries((items) => [mapCommunication({ ...result.communication, proposal_id: deliveryProposal.id }), ...items.filter((item) => item.id !== result.communication.id)]);
+      await Promise.all([loadDeliveries(), refreshData()]);
       if (deliveryChannel === "whatsapp") {
-        if (popup) popup.location.href = result.whatsappUrl; else window.open(result.whatsappUrl, "_blank", "noopener,noreferrer");
-        setToast("Propuesta preparada y abierta en WhatsApp. El intento quedó registrado.");
+        if (result.mode === "official") { if (popup) popup.close(); setToast("Propuesta enviada desde el WhatsApp Business oficial y registrada."); }
+        else { if (popup) popup.location.href = result.whatsappUrl; else window.open(result.whatsappUrl, "_blank", "noopener,noreferrer"); setToast("Propuesta preparada y abierta en WhatsApp. El intento quedó registrado."); }
       } else setToast("Propuesta enviada por correo con el archivo adjunto y registrada en el historial.");
       setDeliveryProposal(undefined); setTimeout(() => setToast(""), 5000);
     } catch (error) {

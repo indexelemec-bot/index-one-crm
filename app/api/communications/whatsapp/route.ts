@@ -41,18 +41,29 @@ export async function POST(request: Request) {
   if (signedError || !signed?.signedUrl) return NextResponse.json({ error: "No fue posible crear el enlace privado de la propuesta." }, { status: 500 });
 
   const message = `${parsed.data.body}\n\nDocumento privado disponible durante 7 días:\n${signed.signedUrl}`;
-  let whatsappUrl: string;
-  try { whatsappUrl = buildWhatsAppUrl(String(stakeholder.phone), message); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Número de WhatsApp inválido." }, { status: 400 }); }
+  let whatsappUrl: string | undefined; let provider = "wa.me"; let providerMessageId: string | undefined; let status = "queued";
+  const metaToken = process.env.WHATSAPP_ACCESS_TOKEN; const phoneNumberId = process.env.WHATSAPP_BUSINESS_PHONE_NUMBER_ID;
+  if (metaToken && phoneNumberId) {
+    const digits = String(stakeholder.phone).replace(/\D/g, "");
+    const graphVersion = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
+    const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, { method: "POST", headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "text", text: { preview_url: true, body: message } }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.messages?.[0]?.id) return NextResponse.json({ error: result.error?.message ?? "WhatsApp Business no confirmó el envío." }, { status: 502 });
+    provider = "meta_whatsapp"; providerMessageId = result.messages[0].id; status = "sent";
+  } else {
+    try { whatsappUrl = buildWhatsAppUrl(String(stakeholder.phone), message); }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Número de WhatsApp inválido." }, { status: 400 }); }
+  }
   const createdAt = new Date().toISOString();
   const messageId = crypto.randomUUID();
   const { data: communication, error: recordError } = await supabase.from("communications").insert({
     id: messageId, opportunity_id: opportunityId, proposal_id: parsed.data.proposalId, stakeholder_id: stakeholder.id,
-    channel: "whatsapp", direction: "outbound", from_address: "WhatsApp del ejecutivo", to_address: stakeholder.phone,
+    channel: "whatsapp", direction: "outbound", from_address: process.env.WHATSAPP_BUSINESS_DISPLAY_NUMBER || "WhatsApp del ejecutivo", to_address: stakeholder.phone,
     subject: `Propuesta v${delivery.proposal.version} — ${delivery.proposal.client_name}`, body_text: parsed.data.body,
-    template_key: "propuesta", provider: "wa.me", attachment_format: delivery.proposal.file_format, status: "queued",
+    template_key: "propuesta", provider, provider_message_id: providerMessageId, attachment_format: delivery.proposal.file_format, status,
     created_by: authData.user.id, sent_at: createdAt
   }).select("*").single();
   if (recordError || !communication) return NextResponse.json({ error: "No fue posible registrar la apertura de WhatsApp." }, { status: 500 });
-  return NextResponse.json({ communication, whatsappUrl });
+  await supabase.from("proposals").update({ status: "enviada", sent_at: new Date().toISOString() }).eq("id", parsed.data.proposalId);
+  return NextResponse.json({ communication, whatsappUrl, mode: provider === "meta_whatsapp" ? "official" : "link" });
 }

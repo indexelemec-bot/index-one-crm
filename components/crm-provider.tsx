@@ -17,12 +17,14 @@ type Store = {
   accounts: Account[]; opportunities: Opportunity[]; stakeholders: Stakeholder[]; tasks: Task[]; proposals: Proposal[];
   references: CommercialReference[]; users: UserProfile[]; salesReports: SalesReport[]; assignmentHistory: AssignmentHistory[]; speechUsages: SpeechUsage[]; currentUser: UserProfile; loading: boolean; syncError: string;
   setCurrentUser: (user: UserProfile) => void; addProspect: (data: NewProspect) => void;
-  updateOpportunity: (id: string, patch: Partial<Opportunity>) => void; addTask: (task: Task) => void;
+  updateOpportunity: (id: string, patch: Partial<Opportunity>) => void; addTask: (task: Task) => Promise<boolean>;
   completeTask: (id: string, outcome: string, nextTask?: Task) => void; addProposal: (proposal: Proposal) => void;
   toggleUser: (id: string) => void; resetDemo: () => void; inviteUser: (input: InviteUserInput) => Promise<{ ok: boolean; error?: string }>;
   assignOpportunity: (id: string, newOwnerId: string, reason: string) => void; closeSale: (input: CloseSaleInput) => void;
   confirmFirstPayment: (reportId: string) => void; markCommissionPaid: (reportId: string) => void;
   markSpeechUsed: (usage: SpeechUsage) => Promise<boolean>;
+  updateUserProfile: (id: string, fullName: string) => Promise<{ ok: boolean; error?: string }>;
+  refreshData: () => Promise<void>;
 };
 
 const CrmContext = createContext<Store | null>(null);
@@ -121,7 +123,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
   }, [loadRemote]);
 
   const value = useMemo<Store>(() => ({
-    accounts, opportunities, stakeholders, tasks, proposals, references, salesReports, assignmentHistory, speechUsages, users: profiles, currentUser, loading, syncError, setCurrentUser,
+    accounts, opportunities, stakeholders, tasks, proposals, references, salesReports, assignmentHistory, speechUsages, users: profiles, currentUser, loading, syncError, setCurrentUser, refreshData: loadRemote,
     addProspect: (data) => {
       if (!remote) { setAccounts((items) => [data.account, ...items]); setStakeholders((items) => [data.stakeholder, ...items]); setOpportunities((items) => [data.opportunity, ...items]); return; }
       const accountId = crypto.randomUUID(); const stakeholderId = crypto.randomUUID(); const opportunityId = crypto.randomUUID();
@@ -144,10 +146,15 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       setOpportunities((items) => items.map((item) => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item));
       if (remote) void createClient()!.from("opportunities").update(opportunityPatchToDb(patch)).eq("id", id).then(({ error }) => { if (error) recoverFrom(error); });
     },
-    addTask: (task) => {
-      const savedTask = remote ? { ...task, id: crypto.randomUUID(), ownerId: currentUser.id } : task;
+    addTask: async (task) => {
+      const savedTask = remote ? { ...task, id: crypto.randomUUID() } : task;
       setTasks((items) => [savedTask, ...items]);
-      if (remote) void createClient()!.from("tasks").insert({ id: savedTask.id, opportunity_id: savedTask.opportunityId, title: savedTask.title, due_at: savedTask.dueAt, priority: savedTask.priority, status: savedTask.status, owner_id: savedTask.ownerId }).then(({ error }) => { if (error) recoverFrom(error); });
+      if (!remote) return true;
+      const { error } = await createClient()!.from("tasks").insert({ id: savedTask.id, opportunity_id: savedTask.opportunityId, title: savedTask.title, due_at: savedTask.dueAt, priority: savedTask.priority, status: savedTask.status, owner_id: savedTask.ownerId });
+      if (error) { recoverFrom(error); return false; }
+      const response = await fetch("/api/tasks/notify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ taskId: savedTask.id }) });
+      if (!response.ok) setSyncError("La tarea se guardó, pero no se pudo enviar el aviso por correo.");
+      return true;
     },
     completeTask: (id, outcome, nextTask) => {
       const savedNext = nextTask && remote ? { ...nextTask, id: crypto.randomUUID() } : nextTask;
@@ -176,6 +183,20 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) { const message = result.error ?? "No fue posible enviar la invitación."; setSyncError(message); return { ok: false, error: message }; }
       await loadRemote(); return { ok: true };
+    },
+    updateUserProfile: async (id, fullName) => {
+      const normalized = fullName.trim().replace(/\s+/g, " ");
+      if (normalized.length < 3) return { ok: false, error: "Escribe el nombre completo del usuario." };
+      if (!remote) {
+        setProfiles((items) => items.map((profile) => profile.id === id ? { ...profile, fullName: normalized } : profile));
+        setCurrentUser((profile) => profile.id === id ? { ...profile, fullName: normalized } : profile);
+        return { ok: true };
+      }
+      const { error } = await createClient()!.from("profiles").update({ full_name: normalized, updated_at: new Date().toISOString() }).eq("id", id);
+      if (error) { recoverFrom(error); return { ok: false, error: error.message }; }
+      setProfiles((items) => items.map((profile) => profile.id === id ? { ...profile, fullName: normalized } : profile));
+      setCurrentUser((profile) => profile.id === id ? { ...profile, fullName: normalized } : profile);
+      return { ok: true };
     },
     toggleUser: (id) => {
       const target = profiles.find((profile) => profile.id === id); if (!target) return;
