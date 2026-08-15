@@ -3,6 +3,24 @@ import type { AccountType, OpportunityStage, UserRole } from "@/types/domain";
 export const stageLabels: Record<OpportunityStage, string> = {
   prospecto_identificado: "Prospecto identificado", problema_detectado: "Problema detectado", contacto_decisor: "Contacto con decisor", diagnostico: "Diagnóstico", solucion_recomendada: "Solución recomendada", presentacion: "Presentación", propuesta: "Propuesta", negociacion: "Negociación", aprobacion: "Aprobación", contrato_transicion: "Contrato y transición", cliente_activo: "Cliente activo", perdida: "Oportunidad perdida"
 };
+
+// La probabilidad representa cercanía al cierre, no una reducción del valor económico del prospecto.
+// Se calcula automáticamente por etapa para mantener una lectura B2B consistente del embudo.
+export const stageClosingProbability: Record<OpportunityStage, number> = {
+  prospecto_identificado: 5,
+  problema_detectado: 10,
+  contacto_decisor: 20,
+  diagnostico: 30,
+  solucion_recomendada: 40,
+  presentacion: 50,
+  propuesta: 65,
+  negociacion: 80,
+  aprobacion: 90,
+  contrato_transicion: 95,
+  cliente_activo: 100,
+  perdida: 0,
+};
+
 export const pipelineStages = (Object.keys(stageLabels) as OpportunityStage[]).filter((s) => s !== "perdida");
 export const accountTypeLabels: Record<AccountType, string> = { condominio_existente: "Condominio existente", torre_residencial: "Torre residencial", proyecto_nuevo: "Proyecto nuevo", constructora: "Constructora", desarrollador: "Desarrollador", aliado: "Aliado estratégico" };
 export const roleLabels: Record<UserRole, string> = { superadmin: "Superadministrador", gerencia_comercial: "Gerencia comercial", ejecutivo: "Ejecutivo comercial", administracion: "Administración", consulta: "Solo consulta" };
