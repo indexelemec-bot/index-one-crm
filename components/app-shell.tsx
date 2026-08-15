@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgeDollarSign, BookOpenCheck, Building2, CheckSquare2, ChevronDown, FileSignature, Gauge, KanbanSquare, Menu, MessageSquareText, Plus, ScrollText, Settings, UserRoundCog, X } from "lucide-react";
-import { useState } from "react";
+import { BadgeDollarSign, BookOpenCheck, Building2, CheckSquare2, ChevronDown, FileSignature, Gauge, KanbanSquare, LogOut, Menu, MessageSquareText, Plus, ScrollText, Settings, UserRoundCog, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { roleLabels } from "@/lib/constants";
 import { useCrm } from "@/components/crm-provider";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { mapProfile } from "@/lib/supabase/mappers";
 
 const nav = [
   { href: "/dashboard", label: "Centro comercial", icon: Gauge },
@@ -22,14 +23,48 @@ const nav = [
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname(); const [open, setOpen] = useState(false); const { currentUser, users, setCurrentUser, resetDemo, loading, syncError } = useCrm();
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const [profileReady, setProfileReady] = useState(!isSupabaseConfigured);
+  const { currentUser, users, setCurrentUser, resetDemo, loading, syncError } = useCrm();
   const isAuthPage = pathname === "/login" || pathname === "/update-password" || pathname === "/access-disabled" || pathname.startsWith("/auth/");
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || isAuthPage) {
+      setProfileReady(true);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const supabase = createClient();
+      if (!supabase) return;
+      const { data: authData } = await supabase.auth.getUser();
+      if (!authData.user || cancelled) return;
+      const { data: profile } = await supabase.from("profiles").select("*").eq("id", authData.user.id).single();
+      if (profile && !cancelled) setCurrentUser(mapProfile(profile));
+      if (!cancelled) setProfileReady(true);
+    })();
+    return () => { cancelled = true; };
+  }, [isAuthPage, setCurrentUser]);
+
+  async function signOut() {
+    const supabase = createClient();
+    if (supabase) await supabase.auth.signOut();
+    window.location.replace("/login");
+  }
+
   if (isAuthPage) return <>{children}</>;
+  if (isSupabaseConfigured && !profileReady) return <main className="login-page"><section className="login-form-wrap"><div className="login-form"><span className="eyebrow">INDEX ONE</span><h2>Cargando tu perfil…</h2><p>Estamos preparando tu sesión y permisos.</p></div></section></main>;
+
   return <div className="shell">
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
       <div className="brand"><span className="brand-mark">⌂</span><span>INDEX <b>ONE</b><small>CRM CONDOMINIAL</small></span><button className="icon-button mobile-only" onClick={() => setOpen(false)} aria-label="Cerrar menú"><X size={20}/></button></div>
       <nav className="nav" aria-label="Navegación principal">{nav.map(({ href, label, icon: Icon }) => <Link href={href} onClick={() => setOpen(false)} className={pathname.startsWith(href) ? "active" : ""} key={href}><Icon size={19}/><span>{label}</span></Link>)}</nav>
-      <div className="sidebar-footer">{!isSupabaseConfigured&&<button className="nav-plain" onClick={resetDemo}><Settings size={18}/> Restablecer demo</button>}<div className="support-card"><b>{isSupabaseConfigured?"Supabase conectado":"Venta consultiva B2B"}</b><small>{isSupabaseConfigured?"Datos protegidos con RLS":"Diagnóstico → solución → aprobación"}</small></div></div>
+      <div className="sidebar-footer">
+        {!isSupabaseConfigured&&<button className="nav-plain" onClick={resetDemo}><Settings size={18}/> Restablecer demo</button>}
+        {isSupabaseConfigured&&<button className="nav-plain" onClick={signOut}><LogOut size={18}/> Cerrar sesión</button>}
+        <div className="support-card"><b>{isSupabaseConfigured?"Supabase conectado":"Venta consultiva B2B"}</b><small>{isSupabaseConfigured?"Datos protegidos con RLS":"Diagnóstico → solución → aprobación"}</small></div>
+      </div>
     </aside>
     {open && <button className="backdrop" onClick={() => setOpen(false)} aria-label="Cerrar menú"/>}
     <div className="workspace">
