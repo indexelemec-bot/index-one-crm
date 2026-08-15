@@ -1,0 +1,1 @@
+Las operaciones administrativas de estado y rol se validan en servidor comprobando sesión activa y rol `superadmin`. El middleware consulta `profiles.active` y bloquea navegación/API para perfiles desactivados.
