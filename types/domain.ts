@@ -9,10 +9,10 @@ export type CommissionStatus = "proyectada" | "ganada" | "pagadera" | "pagada" |
 export type SpeechChannel = "llamada" | "reunion" | "email" | "whatsapp";
 export type SpeechOutcome = "sin_respuesta" | "interes" | "reunion" | "propuesta" | "objecion" | "cierre" | "no_interes";
 
-export interface UserProfile { id: string; fullName: string; email: string; role: UserRole; active: boolean; }
+export interface UserProfile { id: string; fullName: string; email: string; role: UserRole; active: boolean; deletedAt?: string; reassignedTo?: string; }
 export interface Account { id: string; name: string; accountType: AccountType; address: string; sector: string; city: string; units: number; towers: number; profile: string; ownerId: string; source: string; createdAt: string; }
 export interface Stakeholder { id: string; accountId: string; fullName: string; role: StakeholderRole; phone: string; email: string; influence: number; position: "champion" | "neutral" | "opposed" | "unknown"; isDecisionMaker: boolean; }
-export interface Opportunity { id: string; accountId: string; stage: OpportunityStage; primaryProblem: string; impact: string; proposedSolution: string; monthlyFee: number; probability: number; nextAction: string; nextActionAt: string; ownerId: string; updatedAt: string; }
+export interface Opportunity { id: string; accountId: string; stage: OpportunityStage; primaryProblem: string; impact: string; proposedSolution: string; monthlyFee: number; probability: number; nextAction: string; nextActionAt: string; ownerId: string; updatedAt: string; lostReason?: string; followupEnabled?: boolean; nextFollowupAt?: string; followupIntervalMonths?: number; }
 export interface Task { id: string; opportunityId: string; title: string; dueAt: string; priority: "alta" | "media" | "baja"; status: TaskStatus; ownerId: string; outcome?: string; }
 export interface CommercialReference { id: string; clientName: string; location: string; units: number; accountType: AccountType; profile: string; approved: boolean; }
 export interface Proposal { id: string; opportunityId: string; version: number; clientName: string; issueDate: string; monthlyFee: number; referenceIds: string[]; status: ProposalStatus; generatedAt: string; fileFormat: ProposalFileFormat; changeReason?: string; }
