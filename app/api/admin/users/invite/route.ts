@@ -36,52 +36,59 @@ export async function POST(request: Request) {
   const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
   const redirectTo = `${origin}/auth/callback?next=/update-password`;
 
-  // Si el correo pertenece a un usuario archivado, no creamos otra identidad de Auth.
-  // Reactivamos el mismo perfil para conservar la trazabilidad histórica y enviamos
-  // un correo para que el colaborador defina una nueva contraseña.
-  const { data: existingProfile, error: existingProfileError } = await admin
-    .from("profiles")
-    .select("id,active,deleted_at")
-    .eq("email", parsed.data.email)
-    .maybeSingle();
-
-  if (existingProfileError) {
-    return NextResponse.json({ error: "No fue posible verificar el estado del usuario." }, { status: 500 });
+  // Verificamos primero la identidad en Supabase Auth. Esto evita depender de búsquedas
+  // por email en profiles y permite reactivar correctamente usuarios archivados.
+  let existingAuthUser: { id: string; email?: string | null } | undefined;
+  for (let page = 1; page <= 10 && !existingAuthUser; page++) {
+    const { data: pageData, error: listError } = await admin.auth.admin.listUsers({ page, perPage: 100 });
+    if (listError) {
+      console.error("invite:list-users", listError);
+      return NextResponse.json({ error: "No fue posible verificar el estado del usuario." }, { status: 500 });
+    }
+    existingAuthUser = pageData.users.find((user) => user.email?.toLowerCase() === parsed.data.email);
+    if (pageData.users.length < 100) break;
   }
 
-  if (existingProfile) {
-    if (!existingProfile.deleted_at) {
+  if (existingAuthUser) {
+    const { data: existingProfile, error: profileLookupError } = await admin
+      .from("profiles")
+      .select("id,active,deleted_at")
+      .eq("id", existingAuthUser.id)
+      .maybeSingle();
+
+    if (profileLookupError) {
+      console.error("invite:profile-lookup", profileLookupError);
+      return NextResponse.json({ error: "No fue posible verificar el perfil del usuario." }, { status: 500 });
+    }
+
+    if (existingProfile && !existingProfile.deleted_at) {
       return NextResponse.json({ error: "Ese correo ya tiene una cuenta registrada." }, { status: 409 });
     }
 
-    const { error: restoreError } = await admin
-      .from("profiles")
-      .update({
-        full_name: parsed.data.fullName,
-        role: parsed.data.role,
-        active: true,
-        deleted_at: null,
-        reassigned_to: null,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", existingProfile.id);
+    const { error: restoreError } = await admin.from("profiles").upsert({
+      id: existingAuthUser.id,
+      full_name: parsed.data.fullName,
+      email: parsed.data.email,
+      role: parsed.data.role,
+      active: true,
+      deleted_at: null,
+      reassigned_to: null,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "id" });
 
     if (restoreError) {
+      console.error("invite:restore-profile", restoreError);
       return NextResponse.json({ error: "No fue posible reactivar la cuenta archivada." }, { status: 500 });
     }
 
     const { error: resetError } = await admin.auth.resetPasswordForEmail(parsed.data.email, { redirectTo });
     if (resetError) {
-      // Si no se pudo enviar el correo, volvemos a archivar el perfil para no dejar
-      // una cuenta activa sin proceso de recuperación iniciado.
-      await admin
-        .from("profiles")
-        .update({ active: false, deleted_at: new Date().toISOString() })
-        .eq("id", existingProfile.id);
+      console.error("invite:reset-email", resetError);
+      await admin.from("profiles").update({ active: false, deleted_at: new Date().toISOString() }).eq("id", existingAuthUser.id);
       return NextResponse.json({ error: "La cuenta fue encontrada, pero no fue posible enviar el correo de reactivación." }, { status: 502 });
     }
 
-    return NextResponse.json({ ok: true, userId: existingProfile.id, reactivated: true });
+    return NextResponse.json({ ok: true, userId: existingAuthUser.id, reactivated: true });
   }
 
   const { data, error } = await admin.auth.admin.inviteUserByEmail(parsed.data.email, {
@@ -90,6 +97,7 @@ export async function POST(request: Request) {
   });
 
   if (error || !data.user) {
+    console.error("invite:new-user", error);
     const duplicate = error?.message.toLowerCase().includes("already") || error?.message.toLowerCase().includes("registered");
     return NextResponse.json({
       error: duplicate ? "Ese correo ya tiene una cuenta registrada." : "No fue posible enviar la invitación."
@@ -107,6 +115,7 @@ export async function POST(request: Request) {
   }, { onConflict: "id" });
 
   if (profileError) {
+    console.error("invite:new-profile", profileError);
     await admin.auth.admin.deleteUser(data.user.id);
     return NextResponse.json({ error: "La invitación no pudo asociarse al rol solicitado." }, { status: 500 });
   }
