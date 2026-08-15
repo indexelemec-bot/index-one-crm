@@ -38,7 +38,7 @@ begin
   if replacement_name is null then raise exception 'El usuario receptor debe estar activo.'; end if;
 
   insert into public.opportunity_assignment_history (id, opportunity_id, previous_owner_id, new_owner_id, changed_by, change_reason, changed_at)
-  select uuid_generate_v4(), o.id, target_user, replacement_user, auth.uid(),
+  select gen_random_uuid(), o.id, target_user, replacement_user, auth.uid(),
          'Reasignación obligatoria por eliminación de usuario: ' || target_name || ' → ' || replacement_name, now()
   from public.opportunities o
   where o.owner_id = target_user;
