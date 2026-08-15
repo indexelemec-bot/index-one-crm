@@ -2,7 +2,9 @@ import type { Account, AssignmentHistory, CommercialReference, Communication, Op
 
 export const mapProfile = (row: Record<string, unknown>): UserProfile => ({
   id: String(row.id), fullName: String(row.full_name), email: String(row.email ?? ""),
-  role: row.role as UserProfile["role"], active: Boolean(row.active)
+  role: row.role as UserProfile["role"], active: Boolean(row.active),
+  deletedAt: row.deleted_at ? String(row.deleted_at) : undefined,
+  reassignedTo: row.reassigned_to ? String(row.reassigned_to) : undefined
 });
 
 export const mapAccount = (row: Record<string, unknown>): Account => ({
@@ -22,7 +24,11 @@ export const mapOpportunity = (row: Record<string, unknown>): Opportunity => ({
   id: String(row.id), accountId: String(row.account_id), stage: row.stage as Opportunity["stage"],
   primaryProblem: String(row.primary_problem), impact: String(row.impact ?? ""), proposedSolution: String(row.proposed_solution ?? ""),
   monthlyFee: Number(row.monthly_fee), probability: Number(row.probability), nextAction: String(row.next_action),
-  nextActionAt: String(row.next_action_at), ownerId: String(row.owner_id), updatedAt: String(row.updated_at)
+  nextActionAt: String(row.next_action_at), ownerId: String(row.owner_id), updatedAt: String(row.updated_at),
+  lostReason: row.lost_reason ? String(row.lost_reason) : undefined,
+  followupEnabled: Boolean(row.followup_enabled),
+  nextFollowupAt: row.next_followup_at ? String(row.next_followup_at) : undefined,
+  followupIntervalMonths: row.followup_interval_months ? Number(row.followup_interval_months) : undefined
 });
 
 export const mapTask = (row: Record<string, unknown>): Task => ({
