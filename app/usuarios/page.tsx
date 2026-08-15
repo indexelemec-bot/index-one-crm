@@ -18,7 +18,7 @@ const roleScopes: Record<UserRole, string> = {
 };
 
 export default function UsuariosPage() {
-  const { users, currentUser, toggleUser, inviteUser, updateUserProfile, refreshData } = useCrm();
+  const { users, currentUser, inviteUser, updateUserProfile, refreshData } = useCrm();
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -85,6 +85,24 @@ export default function UsuariosPage() {
     setMessage("Rol y alcance actualizados correctamente.");
   }
 
+  async function changeStatus(userId: string, active: boolean) {
+    if (userId === currentUser.id) return;
+    setSending(true); setError(""); setMessage("");
+    const response = await fetch("/api/admin/users/status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, active })
+    });
+    const result = await response.json().catch(() => ({}));
+    setSending(false);
+    if (!response.ok) {
+      setError(result.error ?? "No fue posible actualizar el acceso.");
+      return;
+    }
+    await refreshData();
+    setMessage(active ? "Usuario reactivado correctamente." : "Usuario desactivado. Su acceso quedó bloqueado.");
+  }
+
   return <>
     <PageHeader
       eyebrow="Seguridad y acceso"
@@ -97,6 +115,7 @@ export default function UsuariosPage() {
     </PageHeader>
 
     {message && <div className="sync-banner"><CheckCircle2 size={15}/> {message}</div>}
+    {error && !open && !editingId && !editingAccessId && <div className="sync-banner sync-error">{error}</div>}
 
     <section className="card role-guide">
       <div><Shield size={22}/><span><b>Acceso por rol</b><small>Los ejecutivos ven únicamente su cartera; gerencia y superadministración supervisan el equipo.</small></span></div>
@@ -114,7 +133,7 @@ export default function UsuariosPage() {
           <td><div className="table-actions">
             <button className="button compact" disabled={!canManage} onClick={() => { setEditingId(user.id); setProfileName(user.fullName); setError(""); }}><Pencil size={14}/> Nombre</button>
             <button className="button compact" disabled={!canManage || user.id === currentUser.id} onClick={() => { setEditingAccessId(user.id); setEditingRole(user.role); setError(""); }}><Shield size={14}/> Rol</button>
-            <button className={`button compact ${user.active ? "button-danger" : ""}`} disabled={!canManage || user.id === currentUser.id} onClick={() => { toggleUser(user.id); setMessage(user.active ? "Usuario desactivado. Su acceso quedará bloqueado." : "Usuario reactivado correctamente."); }}>{user.active ? "Desactivar" : "Activar"}</button>
+            <button className={`button compact ${user.active ? "button-danger" : ""}`} disabled={!canManage || user.id === currentUser.id || sending} onClick={() => void changeStatus(user.id, !user.active)}>{user.active ? "Desactivar" : "Activar"}</button>
           </div></td>
         </tr>)}</tbody>
       </table>
