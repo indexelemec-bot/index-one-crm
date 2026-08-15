@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const [visible, setVisible] = useState(false); const [loading, setLoading] = useState(false); const [error,setError]=useState(""); const [email,setEmail]=useState(""); const [message,setMessage]=useState("");
+  const [visible, setVisible] = useState(false); const [loading, setLoading] = useState(false); const [recovering,setRecovering]=useState(false); const [error,setError]=useState(""); const [email,setEmail]=useState(""); const [message,setMessage]=useState("");
   useEffect(()=>{const hash=window.location.hash;if(!hash)return;const params=new URLSearchParams(hash.slice(1));if(params.has("access_token")&&!params.has("error"))window.location.assign(`/update-password${hash}`)},[]);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); setLoading(true); setError(""); const form=new FormData(e.currentTarget);
@@ -12,15 +12,22 @@ export default function LoginPage() {
       const supabase=createClient();
       const {error}=await supabase!.auth.signInWithPassword({email:String(form.get("email")),password:String(form.get("password"))});
       if(error){setError("No pudimos validar las credenciales.");setLoading(false);return}
-      // La aplicación completa vive bajo un proveedor global. Una navegación SPA desde
-      // /login conservaba el estado previo sin sesión y mostraba "Auth session missing!"
-      // aunque la cookie de Supabase ya estuviera creada. Forzamos una carga documental
-      // nueva para que middleware, proveedor y RLS nazcan con la misma sesión autenticada.
       window.location.assign("/dashboard");
       return;
     }
     window.location.assign("/dashboard");
   }
-  async function recover(){if(!email){setError("Escribe primero tu correo corporativo.");return}setError("");setMessage("");const supabase=createClient();const {error:recoverError}=await supabase!.auth.resetPasswordForEmail(email,{redirectTo:`${window.location.origin}/update-password`});if(recoverError){setError("No fue posible enviar el enlace. Inténtalo nuevamente.");return}setMessage("Revisa tu correo: enviamos un enlace nuevo para establecer la contraseña.")}
-  return <main className="login-page"><section className="login-brand"><div className="login-brand-inner"><div className="login-logo"><span>⌂</span> INDEX <b>ONE</b></div><p className="login-kicker">INTELLIGENT CONDO MANAGEMENT</p><h1>Convertimos necesidades en <em>soluciones</em> de administración.</h1><p>El centro comercial B2B de Index Condo: prospectos, decisores, diagnóstico, propuestas y seguimiento en un solo lugar.</p><div className="login-proof"><ShieldCheck/><div><b>Información comercial protegida</b><small>Acceso controlado por rol y cartera asignada.</small></div></div></div></section><section className="login-form-wrap"><form className="login-form" onSubmit={submit}><div className="login-mobile-logo">INDEX <b>ONE</b></div><span className="eyebrow">Bienvenido</span><h2>Accede a tu cuenta</h2><p>Ingresa tus credenciales corporativas para continuar.</p><label className="login-field"><span>Correo electrónico</span><div><Building2 size={18}/><input name="email" type="email" autoComplete="email" placeholder="tu.nombre@indexelemecsrl.com" value={email} onChange={(event)=>setEmail(event.target.value)} required/></div></label><label className="login-field"><span>Contraseña</span><div><LockKeyhole size={18}/><input name="password" type={visible ? "text" : "password"} autoComplete="current-password" placeholder="Tu contraseña" required/><button type="button" onClick={() => setVisible(!visible)} aria-label="Mostrar contraseña">{visible ? <EyeOff size={17}/> : <Eye size={17}/>}</button></div></label>{error&&<div className="field-error">{error}</div>}{message&&<div className="sync-banner">{message}</div>}<div className="login-options"><label><input type="checkbox" defaultChecked/> Mantener sesión</label><button type="button" onClick={recover}>¿Olvidaste tu contraseña?</button></div><button className="button button-primary login-button" disabled={loading}>{loading ? "Ingresando…" : <>Ingresar al CRM <ArrowRight size={18}/></>}</button><small className="demo-note">{isSupabaseConfigured?"Acceso protegido mediante Supabase.":"Acceso demostrativo precargado. Configura Supabase para producción."}</small></form></section></main>;
+  async function recover(){
+    if(!email){setError("Escribe primero tu correo electrónico.");return}
+    setRecovering(true);setError("");setMessage("");
+    try{
+      const response=await fetch("/api/auth/recover",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok){setError(result.error??"No fue posible enviar el enlace. Inténtalo nuevamente.");return}
+      setMessage("Si el correo está registrado, recibirás un enlace para establecer una nueva contraseña. Revisa también correo no deseado.");
+    }catch{
+      setError("No fue posible enviar el enlace. Inténtalo nuevamente.");
+    }finally{setRecovering(false)}
+  }
+  return <main className="login-page"><section className="login-brand"><div className="login-brand-inner"><div className="login-logo"><span>⌂</span> INDEX <b>ONE</b></div><p className="login-kicker">INTELLIGENT CONDO MANAGEMENT</p><h1>Convertimos necesidades en <em>soluciones</em> de administración.</h1><p>El centro comercial B2B de Index Condo: prospectos, decisores, diagnóstico, propuestas y seguimiento en un solo lugar.</p><div className="login-proof"><ShieldCheck/><div><b>Información comercial protegida</b><small>Acceso controlado por rol y cartera asignada.</small></div></div></div></section><section className="login-form-wrap"><form className="login-form" onSubmit={submit}><div className="login-mobile-logo">INDEX <b>ONE</b></div><span className="eyebrow">Bienvenido</span><h2>Accede a tu cuenta</h2><p>Ingresa tus credenciales corporativas para continuar.</p><label className="login-field"><span>Correo electrónico</span><div><Building2 size={18}/><input name="email" type="email" autoComplete="email" placeholder="tu.nombre@indexelemecsrl.com" value={email} onChange={(event)=>setEmail(event.target.value)} required/></div></label><label className="login-field"><span>Contraseña</span><div><LockKeyhole size={18}/><input name="password" type={visible ? "text" : "password"} autoComplete="current-password" placeholder="Tu contraseña" required/><button type="button" onClick={() => setVisible(!visible)} aria-label="Mostrar contraseña">{visible ? <EyeOff size={17}/> : <Eye size={17}/>}</button></div></label>{error&&<div className="field-error">{error}</div>}{message&&<div className="sync-banner">{message}</div>}<div className="login-options"><label><input type="checkbox" defaultChecked/> Mantener sesión</label><button type="button" onClick={recover} disabled={recovering}>{recovering?"Enviando…":"¿Olvidaste tu contraseña?"}</button></div><button className="button button-primary login-button" disabled={loading}>{loading ? "Ingresando…" : <>Ingresar al CRM <ArrowRight size={18}/></>}</button><small className="demo-note">{isSupabaseConfigured?"Acceso protegido mediante Supabase.":"Acceso demostrativo precargado. Configura Supabase para producción."}</small></form></section></main>;
 }
