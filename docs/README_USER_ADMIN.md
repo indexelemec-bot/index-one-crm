@@ -1,0 +1,1 @@
+La administración de usuarios de INDEX ONE CRM se realiza desde `/usuarios` por un superadministrador. Ver `USER_MANAGEMENT.md` y `USER_MANAGEMENT_TEST_PLAN.md` para operación y validación.
