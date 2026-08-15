@@ -23,7 +23,8 @@ const nav = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); const [open, setOpen] = useState(false); const { currentUser, users, setCurrentUser, resetDemo, loading, syncError } = useCrm();
-  if (pathname === "/login") return <>{children}</>;
+  const isAuthPage = pathname === "/login" || pathname === "/update-password" || pathname === "/access-disabled" || pathname.startsWith("/auth/");
+  if (isAuthPage) return <>{children}</>;
   return <div className="shell">
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
       <div className="brand"><span className="brand-mark">⌂</span><span>INDEX <b>ONE</b><small>CRM CONDOMINIAL</small></span><button className="icon-button mobile-only" onClick={() => setOpen(false)} aria-label="Cerrar menú"><X size={20}/></button></div>
