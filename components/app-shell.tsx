@@ -23,7 +23,7 @@ const nav = [
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
   const [open, setOpen] = useState(false);
   const [profileReady, setProfileReady] = useState(!isSupabaseConfigured);
   const { currentUser, users, setCurrentUser, resetDemo, loading, syncError } = useCrm();
@@ -34,27 +34,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setProfileReady(true);
       return;
     }
+
     let cancelled = false;
     void (async () => {
-      const supabase = createClient();
-      if (!supabase) return;
-      const { data: authData } = await supabase.auth.getUser();
-      if (!authData.user || cancelled) return;
-      const { data: profile } = await supabase.from("profiles").select("*").eq("id", authData.user.id).single();
-      if (profile && !cancelled) setCurrentUser(mapProfile(profile));
-      if (!cancelled) setProfileReady(true);
+      try {
+        const supabase = createClient();
+        if (!supabase) return;
+        const { data: authData } = await supabase.auth.getUser();
+        if (!authData.user || cancelled) return;
+        const { data: profile } = await supabase.from("profiles").select("*").eq("id", authData.user.id).maybeSingle();
+        if (profile && !cancelled) setCurrentUser(mapProfile(profile));
+      } catch (error) {
+        console.error("app-shell:profile", error);
+      } finally {
+        if (!cancelled) setProfileReady(true);
+      }
     })();
+
     return () => { cancelled = true; };
   }, [isAuthPage, setCurrentUser]);
 
   async function signOut() {
-    const supabase = createClient();
-    if (supabase) await supabase.auth.signOut();
-    window.location.replace("/login");
+    try {
+      const supabase = createClient();
+      if (supabase) await supabase.auth.signOut();
+    } finally {
+      window.location.replace("/login");
+    }
   }
 
   if (isAuthPage) return <>{children}</>;
   if (isSupabaseConfigured && !profileReady) return <main className="login-page"><section className="login-form-wrap"><div className="login-form"><span className="eyebrow">INDEX ONE</span><h2>Cargando tu perfil…</h2><p>Estamos preparando tu sesión y permisos.</p></div></section></main>;
+
+  const fullName = currentUser?.fullName?.trim() || "Usuario INDEX ONE";
+  const initials = fullName.split(/\s+/).filter(Boolean).map((name) => name[0] ?? "").slice(0, 2).join("").toUpperCase() || "IO";
+  const roleLabel = currentUser?.role ? roleLabels[currentUser.role] ?? "Usuario" : "Usuario";
 
   return <div className="shell">
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
@@ -68,7 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </aside>
     {open && <button className="backdrop" onClick={() => setOpen(false)} aria-label="Cerrar menú"/>}
     <div className="workspace">
-      <header className="app-header"><button className="icon-button mobile-only" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={22}/></button><div className="header-title">INDEX CONDO <span>•</span> Comercial</div><div className="header-actions"><Link href="/prospectos?nuevo=1" className="button button-primary compact"><Plus size={17}/> Nuevo prospecto</Link><label className="user-switcher"><span className="avatar">{currentUser.fullName.split(" ").map((n) => n[0]).slice(0,2).join("")}</span><span className="user-copy"><b>{currentUser.fullName}</b><small>{roleLabels[currentUser.role]}</small></span>{!isSupabaseConfigured&&<ChevronDown size={15}/>}<select value={currentUser.id} disabled={isSupabaseConfigured} onChange={(e) => setCurrentUser(users.find((u) => u.id === e.target.value) ?? users[0])} aria-label={isSupabaseConfigured?"Usuario autenticado":"Cambiar usuario de demostración"}>{users.filter((u) => u.active).map((u) => <option value={u.id} key={u.id}>{u.fullName}</option>)}</select></label></div></header>
+      <header className="app-header"><button className="icon-button mobile-only" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={22}/></button><div className="header-title">INDEX CONDO <span>•</span> Comercial</div><div className="header-actions"><Link href="/prospectos?nuevo=1" className="button button-primary compact"><Plus size={17}/> Nuevo prospecto</Link><label className="user-switcher"><span className="avatar">{initials}</span><span className="user-copy"><b>{fullName}</b><small>{roleLabel}</small></span>{!isSupabaseConfigured&&<ChevronDown size={15}/>}<select value={currentUser?.id ?? ""} disabled={isSupabaseConfigured} onChange={(e) => { const nextUser = users.find((u) => u.id === e.target.value); if (nextUser) setCurrentUser(nextUser); }} aria-label={isSupabaseConfigured?"Usuario autenticado":"Cambiar usuario de demostración"}>{users.filter((u) => u.active).map((u) => <option value={u.id} key={u.id}>{u.fullName}</option>)}</select></label></div></header>
       <main className="main">{loading&&<div className="sync-banner">Sincronizando con Supabase…</div>}{syncError&&<div className="sync-banner sync-error">{syncError}</div>}{children}</main>
     </div>
   </div>;
