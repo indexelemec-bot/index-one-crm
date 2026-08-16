@@ -54,6 +54,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => { cancelled = true; };
   }, [isAuthPage, setCurrentUser]);
 
+  useEffect(() => {
+    if (!isSupabaseConfigured || isAuthPage || !profileReady || !currentUser?.active || !["ejecutivo", "gerencia_comercial", "superadmin"].includes(currentUser.role)) return;
+
+    let cancelled = false;
+    const processScheduled = async () => {
+      try {
+        const response = await fetch("/api/cron/scheduled-communications", { method: "POST", cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const result = await response.json().catch(() => null);
+        if (!cancelled && result?.processed > 0) window.dispatchEvent(new CustomEvent("index:scheduled-processed"));
+      } catch (error) {
+        console.error("app-shell:scheduled-communications", error);
+      }
+    };
+
+    void processScheduled();
+    const timer = window.setInterval(() => { void processScheduled(); }, 30_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [isAuthPage, profileReady, currentUser?.id, currentUser?.role, currentUser?.active]);
+
   async function signOut() {
     try {
       const supabase = createClient();
