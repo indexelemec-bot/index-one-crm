@@ -7,6 +7,7 @@ import { useCrm } from "@/components/crm-provider";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { mapCommunication, mapCommunicationThread, mapScheduledCommunication } from "@/lib/supabase/mappers";
 import type { Communication, CommunicationThread, ScheduledCommunication } from "@/types/domain";
+import { EmailPanel } from "./email-panel";
 import styles from "./communications.module.css";
 
 const stageLabel: Record<string, string> = {
@@ -19,7 +20,7 @@ const stageLabel: Record<string, string> = {
 type UploadedAttachment = { path: string; name: string; mime: string; size: number };
 
 export default function CommunicationsPage() {
-  const { accounts, opportunities, stakeholders, users } = useCrm();
+  const { accounts, opportunities, stakeholders, users, proposals } = useCrm();
   const [tab, setTab] = useState<"whatsapp" | "email" | "scheduled">("whatsapp");
   const [messages, setMessages] = useState<Communication[]>([]);
   const [threads, setThreads] = useState<CommunicationThread[]>([]);
@@ -134,11 +135,7 @@ export default function CommunicationsPage() {
     form.append("file", file);
     const response = await fetch("/api/communications/attachments", { method: "POST", body: form });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setError(result.error ?? "No fue posible adjuntar el archivo.");
-      setUploading(false);
-      return;
-    }
+    if (!response.ok) { setError(result.error ?? "No fue posible adjuntar el archivo."); setUploading(false); return; }
     setSelectedAttachment(result.attachment as UploadedAttachment);
     setUploading(false);
   }
@@ -148,16 +145,8 @@ export default function CommunicationsPage() {
     setSending(true); setError("");
     const body = draft.trim() || `Archivo adjunto: ${selectedAttachment?.name ?? "documento"}`;
     const response = await fetch("/api/communications/whatsapp/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        threadId: activeThread.id,
-        body,
-        simulate: true,
-        attachmentPath: selectedAttachment?.path,
-        attachmentName: selectedAttachment?.name,
-        attachmentMime: selectedAttachment?.mime
-      })
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId: activeThread.id, body, simulate: true, attachmentPath: selectedAttachment?.path, attachmentName: selectedAttachment?.name, attachmentMime: selectedAttachment?.mime })
     });
     const result = await response.json();
     if (!response.ok) { setError(result.error ?? "No fue posible registrar el mensaje."); setSending(false); return; }
@@ -244,9 +233,7 @@ export default function CommunicationsPage() {
           <div className={styles.notice}>Modo simulación activo. Los mensajes se guardan en INDEX ONE, pero todavía no salen al WhatsApp real.</div>
           <div className={styles.messages}>
             {activeMessages.length === 0 && <div className={styles.firstMessage}><CircleUserRound size={22}/><div><b>Inicio de conversación</b><p>El primer mensaje del agente incluirá su presentación visible para que el cliente sepa quién le está atendiendo.</p></div></div>}
-            {activeMessages.map((message) => <div key={message.id} className={`${styles.bubbleRow} ${message.direction === "outbound" ? styles.outbound : styles.inbound}`}>
-              <div className={styles.bubble}>{message.agentNameSnapshot && message.direction === "outbound" && <small className={styles.agentName}>{message.agentNameSnapshot}</small>}<p>{message.bodyText}</p>{message.mediaName && <a href={`/api/communications/attachments/download?communicationId=${message.id}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, fontWeight: 700 }}><Paperclip size={14}/>{message.mediaName}</a>}<span>{new Date(message.sentAt ?? message.createdAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}{message.direction === "outbound" && <CheckCheck size={14}/>}</span></div>
-            </div>)}
+            {activeMessages.map((message) => <div key={message.id} className={`${styles.bubbleRow} ${message.direction === "outbound" ? styles.outbound : styles.inbound}`}><div className={styles.bubble}>{message.agentNameSnapshot && message.direction === "outbound" && <small className={styles.agentName}>{message.agentNameSnapshot}</small>}<p>{message.bodyText}</p>{message.mediaName && <a href={`/api/communications/attachments/download?communicationId=${message.id}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, fontWeight: 700 }}><Paperclip size={14}/>{message.mediaName}</a>}<span>{new Date(message.sentAt ?? message.createdAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}{message.direction === "outbound" && <CheckCheck size={14}/>}</span></div></div>)}
           </div>
           {selectedAttachment && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", borderTop: "1px solid #e8e8e8", background: "#fff" }}><Paperclip size={17}/><div style={{ flex: 1, minWidth: 0 }}><b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedAttachment.name}</b><small>{Math.max(1, Math.round(selectedAttachment.size / 1024))} KB · listo para enviar</small></div><button type="button" onClick={() => { setSelectedAttachment(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }} title="Quitar archivo"><XCircle size={18}/></button></div>}
           <footer className={styles.composer}>
@@ -271,7 +258,7 @@ export default function CommunicationsPage() {
       </aside>
     </div>}
 
-    {tab === "email" && <div className={styles.secondaryPanel}><Mail size={38}/><h2>Correo formal</h2><p>El envío formal existente se mantiene disponible mientras terminamos de unificarlo con la nueva bandeja.</p></div>}
+    {tab === "email" && <EmailPanel accounts={accounts} opportunities={opportunities} stakeholders={stakeholders} proposals={proposals} messages={messages} onMessageSent={(message) => setMessages((items) => [...items, message])} onReload={load} />}
 
     {tab === "scheduled" && <div className={styles.scheduleGrid}>
       {scheduled.length === 0 ? <div className={styles.secondaryPanel}><CalendarClock size={38}/><h2>No hay mensajes programados</h2><p>Desde una conversación podrás programar seguimientos únicos o recurrentes.</p></div> : scheduled.map((item) => {
