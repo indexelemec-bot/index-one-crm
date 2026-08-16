@@ -46,7 +46,7 @@ function parseUnits(value: string) {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 }
 
-async function chooseOwner(admin: ReturnType<typeof createClient>) {
+async function chooseOwner(admin: any) {
   const configured = process.env.META_LEADS_DEFAULT_OWNER_ID;
   if (configured) {
     const { data } = await admin.from("profiles").select("id").eq("id", configured).eq("active", true).is("deleted_at", null).maybeSingle();
@@ -54,7 +54,7 @@ async function chooseOwner(admin: ReturnType<typeof createClient>) {
   }
   const { data: executives } = await admin.from("profiles").select("id,role").eq("active", true).is("deleted_at", null).in("role", ["ejecutivo", "gerencia_comercial", "superadmin"]);
   if (!executives?.length) return null;
-  const preferred = executives.find((item) => item.role === "ejecutivo") ?? executives.find((item) => item.role === "gerencia_comercial") ?? executives[0];
+  const preferred = executives.find((item: any) => item.role === "ejecutivo") ?? executives.find((item: any) => item.role === "gerencia_comercial") ?? executives[0];
   return preferred?.id as string | null;
 }
 
@@ -69,7 +69,7 @@ async function fetchMetaLead(leadId: string) {
   return data;
 }
 
-async function convertLead(admin: ReturnType<typeof createClient>, rowId: string, lead: any, sourceChannel: string) {
+async function convertLead(admin: any, rowId: string, lead: any, sourceChannel: string) {
   const fields: Record<string, string> = {};
   for (const item of Array.isArray(lead.field_data) ? lead.field_data : []) {
     const key = normalizeKey(String(item?.name ?? ""));
