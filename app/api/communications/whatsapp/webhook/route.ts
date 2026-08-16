@@ -134,13 +134,14 @@ export async function POST(request: Request) {
         }).eq("id", thread.id);
 
         if (communication && transcribable) {
-          await admin.from("activities").insert({
+          const { error: activityError } = await admin.from("activities").insert({
             opportunity_id: opportunity.id,
             activity_type: "whatsapp_voice_note",
             outcome: "Nota de voz recibida; transcripción automática pendiente.",
             created_by: opportunity.owner_id,
             completed_at: receivedAt
-          }).catch(() => undefined);
+          });
+          if (activityError) console.warn("voice-note activity log failed", activityError.message);
         }
       }
     }
