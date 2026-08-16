@@ -15,7 +15,7 @@ export async function GET(request: Request) {
   if (!authData.user) return NextResponse.json({ error: "Sesión no disponible." }, { status: 401 });
 
   const { data: communication, error } = await supabase.from("communications")
-    .select("id,media_path,media_name")
+    .select("id,media_path,media_name,media_mime_type")
     .eq("id", parsed.data.communicationId)
     .single();
   if (error || !communication?.media_path) return NextResponse.json({ error: "El mensaje no tiene un archivo disponible." }, { status: 404 });
@@ -24,7 +24,9 @@ export async function GET(request: Request) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) return NextResponse.json({ error: "Falta configurar el almacenamiento seguro." }, { status: 503 });
   const admin = createAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: signed, error: signedError } = await admin.storage.from("communication-files").createSignedUrl(String(communication.media_path), 60 * 10, { download: communication.media_name || true });
+  const previewable = communication.media_mime_type === "application/pdf" || String(communication.media_mime_type ?? "").startsWith("image/");
+  const options = previewable ? undefined : { download: communication.media_name || true };
+  const { data: signed, error: signedError } = await admin.storage.from("communication-files").createSignedUrl(String(communication.media_path), 60 * 10, options);
   if (signedError || !signed?.signedUrl) return NextResponse.json({ error: "No fue posible generar el enlace del archivo." }, { status: 500 });
 
   return NextResponse.redirect(signed.signedUrl, 302);
