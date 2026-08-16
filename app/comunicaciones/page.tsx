@@ -253,7 +253,7 @@ export default function CommunicationsPage() {
           <div className={styles.contextBlock}><small>ETAPA COMERCIAL</small><b>{stageLabel[activeOpportunity?.stage ?? ""] ?? activeOpportunity?.stage}</b><span>{activeOpportunity?.probability ?? 0}% avance de cierre</span></div>
           <div className={styles.contextBlock}><small>PRÓXIMA ACCIÓN</small><b>{activeOpportunity?.nextAction || "Sin acción definida"}</b><span>{activeOpportunity?.nextActionAt ? new Date(activeOpportunity.nextActionAt).toLocaleString("es-DO") : "Sin fecha"}</span></div>
           <div className={styles.contextBlock}><small>HONORARIOS PROSPECTADOS</small><b>{new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP", maximumFractionDigits: 0 }).format(activeOpportunity?.monthlyFee ?? 0)}</b><span>Mensuales</span></div>
-          <button className={styles.contextAction}><FileText size={17}/> Abrir expediente comercial</button>
+          <button className={styles.contextAction} onClick={() => { if (activeAccount?.id) window.location.href = `/prospectos/${activeAccount.id}`; }} disabled={!activeAccount?.id}><FileText size={17}/> Abrir expediente comercial</button>
         </> : <div className={styles.contextEmpty}>Selecciona una conversación para ver los datos comerciales.</div>}
       </aside>
     </div>}
