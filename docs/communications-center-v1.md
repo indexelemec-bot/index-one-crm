@@ -77,7 +77,9 @@ No se fusionará a `main` hasta aprobación del usuario.
 Vercel Preview Deployment generado desde la rama de feature.
 
 ### Datos
-Usar una Supabase Development Branch o proyecto de staging separado. Nunca conectar el Preview a la base de producción para pruebas de escritura.
+Proyecto Supabase staging separado con Project Ref `ecexjlgozrqqdmqukhyl`.
+El Preview de Vercel usa `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` exclusivos para Preview.
+Nunca conectar el Preview a la base de producción para pruebas de escritura.
 
 ### WhatsApp
 Mientras se construye la UI se utilizará modo simulación/test. La conexión con el número corporativo real se habilita únicamente después de validar:
