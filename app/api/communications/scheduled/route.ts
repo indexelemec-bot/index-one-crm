@@ -24,12 +24,33 @@ export async function POST(request: Request) {
   if (!supabase) return NextResponse.json({ error: "Supabase no está configurado." }, { status: 503 });
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return NextResponse.json({ error: "Sesión no disponible." }, { status: 401 });
-  if (new Date(parsed.data.scheduledFor).getTime() <= Date.now()) return NextResponse.json({ error: "La fecha programada debe ser futura." }, { status: 400 });
+
+  const scheduledAt = new Date(parsed.data.scheduledFor);
+  if (scheduledAt.getTime() <= Date.now()) return NextResponse.json({ error: "La fecha programada debe ser futura." }, { status: 400 });
 
   const { data: opportunity } = await supabase.from("opportunities").select("id,account_id").eq("id", parsed.data.opportunityId).single();
   if (!opportunity) return NextResponse.json({ error: "La oportunidad no está disponible." }, { status: 403 });
   const { data: stakeholder } = await supabase.from("stakeholders").select("id,account_id").eq("id", parsed.data.stakeholderId).eq("account_id", opportunity.account_id).single();
   if (!stakeholder) return NextResponse.json({ error: "El contacto no pertenece a esta cuenta." }, { status: 400 });
+
+  const duplicateWindowStart = new Date(scheduledAt.getTime() - 60_000).toISOString();
+  const duplicateWindowEnd = new Date(scheduledAt.getTime() + 60_000).toISOString();
+  let duplicateQuery = supabase.from("scheduled_communications")
+    .select("id,scheduled_for")
+    .eq("opportunity_id", opportunity.id)
+    .eq("stakeholder_id", stakeholder.id)
+    .eq("channel", parsed.data.channel)
+    .eq("body_text", parsed.data.body)
+    .eq("created_by", authData.user.id)
+    .eq("status", "scheduled")
+    .gte("scheduled_for", duplicateWindowStart)
+    .lte("scheduled_for", duplicateWindowEnd)
+    .limit(1);
+  if (parsed.data.threadId) duplicateQuery = duplicateQuery.eq("thread_id", parsed.data.threadId);
+  const { data: duplicates } = await duplicateQuery;
+  if (duplicates?.length) {
+    return NextResponse.json({ error: "Este mismo mensaje ya está programado para prácticamente la misma hora." }, { status: 409 });
+  }
 
   const { data, error } = await supabase.from("scheduled_communications").insert({
     thread_id: parsed.data.threadId ?? null,
