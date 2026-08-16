@@ -25,6 +25,21 @@ function verifySignature(rawBody: string, signature: string | null) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+function inboundBody(incoming: any) {
+  if (incoming?.type === "audio") return "🎤 Nota de voz recibida";
+  if (incoming?.type === "image") return incoming?.image?.caption || "🖼️ Imagen recibida";
+  if (incoming?.type === "document") return incoming?.document?.caption || incoming?.document?.filename || "📎 Documento recibido";
+  return incoming?.text?.body ?? incoming?.button?.text ?? incoming?.interactive?.button_reply?.title ?? `[${incoming?.type ?? "mensaje"}]`;
+}
+
+function providerMediaId(incoming: any) {
+  if (incoming?.type === "audio") return incoming?.audio?.id ?? null;
+  if (incoming?.type === "image") return incoming?.image?.id ?? null;
+  if (incoming?.type === "document") return incoming?.document?.id ?? null;
+  if (incoming?.type === "video") return incoming?.video?.id ?? null;
+  return null;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const mode = url.searchParams.get("hub.mode");
@@ -81,12 +96,14 @@ export async function POST(request: Request) {
         }
         if (!thread) continue;
 
-        const body = incoming?.text?.body ?? incoming?.button?.text ?? incoming?.interactive?.button_reply?.title ?? `[${incoming?.type ?? "mensaje"}]`;
         const receivedAt = incoming?.timestamp ? new Date(Number(incoming.timestamp) * 1000).toISOString() : new Date().toISOString();
         const { data: duplicate } = await admin.from("communications").select("id").eq("provider_message_id", incoming.id).maybeSingle();
         if (duplicate) continue;
 
-        await admin.from("communications").insert({
+        const mediaId = providerMediaId(incoming);
+        const messageType = incoming?.type ?? "text";
+        const transcribable = messageType === "audio" && Boolean(mediaId);
+        const { data: communication } = await admin.from("communications").insert({
           opportunity_id: opportunity.id,
           stakeholder_id: stakeholder.id,
           thread_id: thread.id,
@@ -94,14 +111,20 @@ export async function POST(request: Request) {
           direction: "inbound",
           from_address: from,
           to_address: value?.metadata?.display_phone_number ?? "INDEX CONDO",
-          body_text: body,
+          body_text: inboundBody(incoming),
           provider: "meta_whatsapp",
           provider_message_id: incoming.id,
+          provider_media_id: mediaId,
           status: "received",
-          message_type: incoming?.type ?? "text",
+          message_type: messageType,
+          media_name: incoming?.document?.filename ?? null,
+          media_mime_type: incoming?.audio?.mime_type ?? incoming?.image?.mime_type ?? incoming?.document?.mime_type ?? incoming?.video?.mime_type ?? null,
+          transcription_status: transcribable ? "pending" : "not_requested",
+          transcription_language: transcribable ? "es" : null,
           created_by: null,
           created_at: receivedAt
-        });
+        }).select("id").single();
+
         await admin.from("communication_threads").update({
           status: "open",
           unread_count: Number(thread.unread_count ?? 0) + 1,
@@ -109,6 +132,16 @@ export async function POST(request: Request) {
           last_inbound_at: receivedAt,
           updated_at: receivedAt
         }).eq("id", thread.id);
+
+        if (communication && transcribable) {
+          await admin.from("activities").insert({
+            opportunity_id: opportunity.id,
+            activity_type: "whatsapp_voice_note",
+            outcome: "Nota de voz recibida; transcripción automática pendiente.",
+            created_by: opportunity.owner_id,
+            completed_at: receivedAt
+          }).catch(() => undefined);
+        }
       }
     }
   }
