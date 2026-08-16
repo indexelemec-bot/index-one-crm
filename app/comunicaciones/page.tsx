@@ -1,7 +1,7 @@
 "use client";
 
-import { CalendarClock, CheckCheck, CircleUserRound, FileText, Mail, MessageCircle, Paperclip, Plus, Search, Send, UserRoundCog, Users, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { CalendarClock, CheckCheck, CircleUserRound, FileText, Mail, MessageCircle, Paperclip, Plus, Search, Send, UserRoundCog, XCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, PageHeader } from "@/components/ui";
 import { useCrm } from "@/components/crm-provider";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
@@ -16,6 +16,8 @@ const stageLabel: Record<string, string> = {
   contrato_transicion: "Contrato / transición", cliente_activo: "Cliente activo", perdida: "Prospecto descartado"
 };
 
+type UploadedAttachment = { path: string; name: string; mime: string; size: number };
+
 export default function CommunicationsPage() {
   const { accounts, opportunities, stakeholders, users } = useCrm();
   const [tab, setTab] = useState<"whatsapp" | "email" | "scheduled">("whatsapp");
@@ -28,6 +30,9 @@ export default function CommunicationsPage() {
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [selectedAttachment, setSelectedAttachment] = useState<UploadedAttachment | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [newOpportunityId, setNewOpportunityId] = useState("");
@@ -79,6 +84,7 @@ export default function CommunicationsPage() {
   }), [derivedThreads, stakeholders, opportunities, accounts, query]);
 
   useEffect(() => { if (!activeThreadId && visibleThreads[0]) setActiveThreadId(visibleThreads[0].id); }, [activeThreadId, visibleThreads]);
+  useEffect(() => { setSelectedAttachment(null); }, [activeThreadId]);
 
   const activeThread = visibleThreads.find((item) => item.id === activeThreadId) ?? derivedThreads.find((item) => item.id === activeThreadId);
   const activeStakeholder = stakeholders.find((item) => item.id === activeThread?.stakeholderId);
@@ -119,14 +125,45 @@ export default function CommunicationsPage() {
     setActiveThreadId(thread.id); setNewOpen(false); setTab("whatsapp");
   }
 
+  async function uploadAttachment(file: File) {
+    if (!activeThread || activeThread.id.includes(":")) { setError("Selecciona una conversación guardada antes de adjuntar un archivo."); return; }
+    if (file.size > 15 * 1024 * 1024) { setError("El archivo debe pesar menos de 15 MB."); return; }
+    setUploading(true); setError("");
+    const form = new FormData();
+    form.append("threadId", activeThread.id);
+    form.append("file", file);
+    const response = await fetch("/api/communications/attachments", { method: "POST", body: form });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setError(result.error ?? "No fue posible adjuntar el archivo.");
+      setUploading(false);
+      return;
+    }
+    setSelectedAttachment(result.attachment as UploadedAttachment);
+    setUploading(false);
+  }
+
   async function sendMessage() {
-    if (!draft.trim() || !activeThread || activeThread.id.includes(":")) return;
+    if ((!draft.trim() && !selectedAttachment) || !activeThread || activeThread.id.includes(":")) return;
     setSending(true); setError("");
-    const response = await fetch("/api/communications/whatsapp/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: activeThread.id, body: draft.trim(), simulate: true }) });
+    const body = draft.trim() || `Archivo adjunto: ${selectedAttachment?.name ?? "documento"}`;
+    const response = await fetch("/api/communications/whatsapp/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        threadId: activeThread.id,
+        body,
+        simulate: true,
+        attachmentPath: selectedAttachment?.path,
+        attachmentName: selectedAttachment?.name,
+        attachmentMime: selectedAttachment?.mime
+      })
+    });
     const result = await response.json();
     if (!response.ok) { setError(result.error ?? "No fue posible registrar el mensaje."); setSending(false); return; }
     setMessages((items) => [...items, mapCommunication(result.communication)]);
-    setDraft(""); setSending(false);
+    setDraft(""); setSelectedAttachment(null); setSending(false);
+    if (attachmentInputRef.current) attachmentInputRef.current.value = "";
     await load();
   }
 
@@ -204,14 +241,21 @@ export default function CommunicationsPage() {
             <div><b>{activeStakeholder?.fullName}</b><small>{activeAccount?.name} · {activeStakeholder?.phone}</small></div>
             <label className={styles.agentSelect}><UserRoundCog size={15}/><span><small>Atiende</small><select value={assignedAgent?.id ?? ""} onChange={(event) => void reassignConversation(event.target.value)}>{activeUsers.map((user) => <option value={user.id} key={user.id}>{user.fullName}</option>)}</select></span></label>
           </header>
-          <div className={styles.notice}>Modo simulación activo. Los mensajes se guardan en staging, pero no salen al WhatsApp real.</div>
+          <div className={styles.notice}>Modo simulación activo. Los mensajes se guardan en INDEX ONE, pero todavía no salen al WhatsApp real.</div>
           <div className={styles.messages}>
             {activeMessages.length === 0 && <div className={styles.firstMessage}><CircleUserRound size={22}/><div><b>Inicio de conversación</b><p>El primer mensaje del agente incluirá su presentación visible para que el cliente sepa quién le está atendiendo.</p></div></div>}
             {activeMessages.map((message) => <div key={message.id} className={`${styles.bubbleRow} ${message.direction === "outbound" ? styles.outbound : styles.inbound}`}>
-              <div className={styles.bubble}>{message.agentNameSnapshot && message.direction === "outbound" && <small className={styles.agentName}>{message.agentNameSnapshot}</small>}<p>{message.bodyText}</p><span>{new Date(message.sentAt ?? message.createdAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}{message.direction === "outbound" && <CheckCheck size={14}/>}</span></div>
+              <div className={styles.bubble}>{message.agentNameSnapshot && message.direction === "outbound" && <small className={styles.agentName}>{message.agentNameSnapshot}</small>}<p>{message.bodyText}</p>{message.mediaName && <a href={`/api/communications/attachments/download?communicationId=${message.id}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, fontWeight: 700 }}><Paperclip size={14}/>{message.mediaName}</a>}<span>{new Date(message.sentAt ?? message.createdAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}{message.direction === "outbound" && <CheckCheck size={14}/>}</span></div>
             </div>)}
           </div>
-          <footer className={styles.composer}><button title="Adjuntar documento"><Paperclip size={20}/></button><button title="Programar seguimiento" onClick={openSchedule}><CalendarClock size={20}/></button><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Escribe un mensaje…" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }}/><button className={styles.sendButton} onClick={() => void sendMessage()} disabled={!draft.trim() || sending || activeThread.id.includes(":")}><Send size={19}/></button></footer>
+          {selectedAttachment && <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", borderTop: "1px solid #e8e8e8", background: "#fff" }}><Paperclip size={17}/><div style={{ flex: 1, minWidth: 0 }}><b style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedAttachment.name}</b><small>{Math.max(1, Math.round(selectedAttachment.size / 1024))} KB · listo para enviar</small></div><button type="button" onClick={() => { setSelectedAttachment(null); if (attachmentInputRef.current) attachmentInputRef.current.value = ""; }} title="Quitar archivo"><XCircle size={18}/></button></div>}
+          <footer className={styles.composer}>
+            <input ref={attachmentInputRef} type="file" accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAttachment(file); }} />
+            <button title="Adjuntar documento" onClick={() => attachmentInputRef.current?.click()} disabled={uploading || activeThread.id.includes(":")}><Paperclip size={20}/></button>
+            <button title="Programar seguimiento" onClick={openSchedule}><CalendarClock size={20}/></button>
+            <textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder={uploading ? "Subiendo archivo…" : selectedAttachment ? "Agrega un mensaje al archivo (opcional)…" : "Escribe un mensaje…"} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }}/>
+            <button className={styles.sendButton} onClick={() => void sendMessage()} disabled={(!draft.trim() && !selectedAttachment) || sending || uploading || activeThread.id.includes(":")}><Send size={19}/></button>
+          </footer>
         </>}
       </section>
 
