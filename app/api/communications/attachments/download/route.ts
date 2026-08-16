@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 const schema = z.object({ communicationId: z.string().uuid() });
 
 export async function GET(request: Request) {
-  const parsed = schema.safeParse(Object.fromEntries(new URL(request.url).searchParams).communicationId);
+  const parsed = schema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!parsed.success) return NextResponse.json({ error: "Archivo inválido." }, { status: 400 });
 
   const supabase = await createClient();
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   const { data: communication, error } = await supabase.from("communications")
     .select("id,media_path,media_name")
-    .eq("id", parsed.data)
+    .eq("id", parsed.data.communicationId)
     .single();
   if (error || !communication?.media_path) return NextResponse.json({ error: "El mensaje no tiene un archivo disponible." }, { status: 404 });
 
