@@ -36,6 +36,11 @@ alter table public.communications
   add column if not exists reply_to_provider_message_id text,
   add column if not exists is_internal boolean not null default false;
 
+-- Preview/staging sends are persisted without contacting a real customer.
+alter table public.communications drop constraint if exists communications_status_check;
+alter table public.communications add constraint communications_status_check
+  check (status in ('draft','queued','simulated','sent','delivered','opened','delayed','bounced','failed','complained','received'));
+
 -- Inbound webhook messages do not originate from a CRM user.
 alter table public.communications alter column created_by drop not null;
 
@@ -140,14 +145,14 @@ for select to authenticated using (
 drop policy if exists "scheduled_communications_commercial_write" on public.scheduled_communications;
 create policy "scheduled_communications_commercial_write" on public.scheduled_communications
 for all to authenticated using (
-  created_by = auth.uid()
+  (created_by = auth.uid() or public.current_profile_role() in ('superadmin','gerencia_comercial'))
   and exists (
     select 1 from public.opportunities o
     where o.id = opportunity_id
       and (public.current_profile_role() in ('superadmin','gerencia_comercial') or o.owner_id = auth.uid())
   )
 ) with check (
-  created_by = auth.uid()
+  (created_by = auth.uid() or public.current_profile_role() in ('superadmin','gerencia_comercial'))
   and exists (
     select 1 from public.opportunities o
     where o.id = opportunity_id
