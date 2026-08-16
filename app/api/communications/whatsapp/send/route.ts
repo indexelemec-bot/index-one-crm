@@ -1,3 +1,4 @@
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -5,7 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 const schema = z.object({
   threadId: z.string().uuid(),
   body: z.string().trim().min(1).max(4000),
-  simulate: z.boolean().optional().default(false)
+  simulate: z.boolean().optional().default(false),
+  attachmentPath: z.string().trim().max(1000).optional(),
+  attachmentName: z.string().trim().max(255).optional(),
+  attachmentMime: z.string().trim().max(150).optional()
 });
 
 export async function POST(request: Request) {
@@ -31,18 +35,42 @@ export async function POST(request: Request) {
   let provider = "simulation";
   let providerMessageId: string | null = null;
   let status = "simulated";
+  let signedAttachmentUrl: string | undefined;
 
   const realSendingEnabled = process.env.WHATSAPP_REAL_SEND_ENABLED === "true" && !parsed.data.simulate;
   const metaToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_BUSINESS_PHONE_NUMBER_ID;
+  const graphVersion = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
+
+  if (parsed.data.attachmentPath) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !serviceKey) return NextResponse.json({ error: "Falta configurar el almacenamiento seguro." }, { status: 503 });
+    if (!parsed.data.attachmentPath.startsWith(`${opportunity.id}/${thread.id}/`)) return NextResponse.json({ error: "El archivo no pertenece a esta conversación." }, { status: 403 });
+    const admin = createAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { data: signed, error: signedError } = await admin.storage.from("communication-files").createSignedUrl(parsed.data.attachmentPath, 60 * 60 * 24 * 7);
+    if (signedError || !signed?.signedUrl) return NextResponse.json({ error: "No fue posible preparar el archivo adjunto." }, { status: 500 });
+    signedAttachmentUrl = signed.signedUrl;
+  }
+
   if (realSendingEnabled) {
     if (!metaToken || !phoneNumberId) return NextResponse.json({ error: "WhatsApp Business todavía no está configurado para envío real." }, { status: 503 });
     const digits = String(stakeholder.phone).replace(/\D/g, "");
-    const graphVersion = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
+    const payload = signedAttachmentUrl
+      ? {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: digits,
+          type: parsed.data.attachmentMime?.startsWith("image/") ? "image" : "document",
+          ...(parsed.data.attachmentMime?.startsWith("image/")
+            ? { image: { link: signedAttachmentUrl, caption: outboundBody } }
+            : { document: { link: signedAttachmentUrl, filename: parsed.data.attachmentName || "documento", caption: outboundBody } })
+        }
+      : { messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "text", text: { preview_url: true, body: outboundBody } };
     const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, {
       method: "POST",
       headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "text", text: { preview_url: true, body: outboundBody } })
+      body: JSON.stringify(payload)
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.messages?.[0]?.id) return NextResponse.json({ error: result.error?.message ?? "WhatsApp Business no confirmó el envío." }, { status: 502 });
@@ -51,6 +79,7 @@ export async function POST(request: Request) {
     status = "sent";
   }
 
+  const messageType = parsed.data.attachmentPath ? (parsed.data.attachmentMime?.startsWith("image/") ? "image" : "document") : "text";
   const { data: communication, error: recordError } = await supabase.from("communications").insert({
     opportunity_id: opportunity.id,
     stakeholder_id: stakeholder.id,
@@ -65,7 +94,10 @@ export async function POST(request: Request) {
     status,
     agent_id: authData.user.id,
     agent_name_snapshot: agentName,
-    message_type: "text",
+    message_type: messageType,
+    media_path: parsed.data.attachmentPath ?? null,
+    media_name: parsed.data.attachmentName ?? null,
+    media_mime_type: parsed.data.attachmentMime ?? null,
     created_by: authData.user.id,
     sent_at: now
   }).select("*").single();
