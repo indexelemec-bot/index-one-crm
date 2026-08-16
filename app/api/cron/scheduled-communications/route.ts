@@ -166,7 +166,7 @@ export async function POST() {
   if (!authData.user) return NextResponse.json({ error: "Sesión no disponible." }, { status: 401 });
 
   const { data: profile } = await supabase.from("profiles").select("role,active,deleted_at").eq("id", authData.user.id).maybeSingle();
-  if (!profile || !profile.active || profile.deleted_at || !["superadmin", "gerencia_comercial"].includes(profile.role)) {
+  if (!profile || !profile.active || profile.deleted_at || !["ejecutivo", "gerencia_comercial", "superadmin"].includes(profile.role)) {
     return NextResponse.json({ error: "No tienes permiso para procesar seguimientos programados." }, { status: 403 });
   }
 
