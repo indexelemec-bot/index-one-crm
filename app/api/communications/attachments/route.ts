@@ -25,14 +25,14 @@ export async function POST(request: Request) {
   const { data: authData } = await supabase.auth.getUser();
   if (!authData.user) return NextResponse.json({ error: "Sesión no disponible." }, { status: 401 });
 
-  const form = await request.formData().catch(() => null);
-  if (!form) return NextResponse.json({ error: "No fue posible leer el archivo." }, { status: 400 });
-  const threadId = String(form.get("threadId") ?? "");
-  const parsedThread = threadSchema.safeParse(threadId);
-  const file = form.get("file");
-  if (!parsedThread.success || !(file instanceof File)) return NextResponse.json({ error: "Conversación o archivo inválido." }, { status: 400 });
-  if (!allowedMimeTypes.has(file.type)) return NextResponse.json({ error: "Formato no permitido. Usa PDF, Word, Excel, PNG o JPG." }, { status: 400 });
-  if (file.size <= 0 || file.size > MAX_BYTES) return NextResponse.json({ error: "El archivo debe pesar menos de 15 MB." }, { status: 400 });
+  const body = await request.json().catch(() => null) as { threadId?: string; name?: string; mime?: string; size?: number } | null;
+  const parsedThread = threadSchema.safeParse(body?.threadId ?? "");
+  const name = String(body?.name ?? "").trim();
+  const mime = String(body?.mime ?? "").trim();
+  const size = Number(body?.size ?? 0);
+  if (!parsedThread.success || !name) return NextResponse.json({ error: "Conversación o archivo inválido." }, { status: 400 });
+  if (!allowedMimeTypes.has(mime)) return NextResponse.json({ error: "Formato no permitido. Usa PDF, Word, Excel, PNG o JPG." }, { status: 400 });
+  if (!Number.isFinite(size) || size <= 0 || size > MAX_BYTES) return NextResponse.json({ error: "El archivo debe pesar menos de 15 MB." }, { status: 400 });
 
   const { data: thread, error: threadError } = await supabase.from("communication_threads").select("id,opportunity_id,stakeholder_id,status").eq("id", parsedThread.data).single();
   if (threadError || !thread || thread.status === "archived") return NextResponse.json({ error: "Conversación no disponible." }, { status: 404 });
@@ -41,11 +41,10 @@ export async function POST(request: Request) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) return NextResponse.json({ error: "Falta configurar el almacenamiento seguro." }, { status: 503 });
   const admin = createAdminClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const safeName = sanitizeFileName(file.name);
+  const safeName = sanitizeFileName(name);
   const path = `${thread.opportunity_id}/${thread.id}/${crypto.randomUUID()}-${safeName}`;
-  const bytes = Buffer.from(await file.arrayBuffer());
-  const { error: uploadError } = await admin.storage.from("communication-files").upload(path, bytes, { contentType: file.type, upsert: false });
-  if (uploadError) return NextResponse.json({ error: uploadError.message || "No fue posible guardar el archivo." }, { status: 500 });
+  const { data: signed, error: signedError } = await admin.storage.from("communication-files").createSignedUploadUrl(path);
+  if (signedError || !signed?.token) return NextResponse.json({ error: signedError?.message || "No fue posible preparar la carga del archivo." }, { status: 500 });
 
-  return NextResponse.json({ attachment: { path, name: file.name, mime: file.type, size: file.size } });
+  return NextResponse.json({ attachment: { path, name, mime, size, token: signed.token } });
 }
