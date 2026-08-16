@@ -13,6 +13,21 @@ const schema = z.object({
   body: z.string().trim().min(10).max(4000)
 });
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function loadProposalWithPersistenceWait(supabase: Awaited<ReturnType<typeof createClient>>, proposalId: string) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    try {
+      return await loadProposalDeliveryFile(supabase!, proposalId);
+    } catch (error) {
+      lastError = error;
+      if (attempt < 6) await sleep(350 + attempt * 150);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("La propuesta todavía no está disponible para enviar.");
+}
+
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Revisa la propuesta, el contacto y el mensaje." }, { status: 400 });
@@ -22,8 +37,15 @@ export async function POST(request: Request) {
   if (!authData.user) return NextResponse.json({ error: "Sesión no disponible." }, { status: 401 });
 
   let delivery: Awaited<ReturnType<typeof loadProposalDeliveryFile>>;
-  try { delivery = await loadProposalDeliveryFile(supabase, parsed.data.proposalId); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "No fue posible preparar la propuesta." }, { status: 400 }); }
+  try { delivery = await loadProposalWithPersistenceWait(supabase, parsed.data.proposalId); }
+  catch (error) {
+    return NextResponse.json({
+      error: error instanceof Error && !error.message.includes("no está disponible")
+        ? error.message
+        : "La propuesta todavía se está guardando. Espera unos segundos y vuelve a intentar el envío."
+    }, { status: 409 });
+  }
+
   const opportunityId = String(delivery.proposal.opportunity_id);
   const { data: opportunity, error: opportunityError } = await supabase.from("opportunities").select("id,account_id").eq("id", opportunityId).single();
   if (opportunityError || !opportunity) return NextResponse.json({ error: "La oportunidad no está disponible para este usuario." }, { status: 403 });
