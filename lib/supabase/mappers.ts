@@ -82,7 +82,7 @@ export const mapCommunication = (row: Record<string, unknown>): Communication =>
   status: String(row.status), errorMessage: row.error_message ? String(row.error_message) : undefined,
   agentId: row.agent_id ? String(row.agent_id) : undefined, agentNameSnapshot: row.agent_name_snapshot ? String(row.agent_name_snapshot) : undefined,
   messageType: row.message_type ? String(row.message_type) : undefined, mediaPath: row.media_path ? String(row.media_path) : undefined,
-  mediaName: row.media_name ? String(row.media_name) : undefined, mediaMime: row.media_mime ? String(row.media_mime) : undefined,
+  mediaName: row.media_name ? String(row.media_name) : undefined, mediaMime: row.media_mime_type ? String(row.media_mime_type) : undefined,
   replyToProviderMessageId: row.reply_to_provider_message_id ? String(row.reply_to_provider_message_id) : undefined,
   isInternal: Boolean(row.is_internal), sentAt: row.sent_at ? String(row.sent_at) : undefined,
   deliveredAt: row.delivered_at ? String(row.delivered_at) : undefined, openedAt: row.opened_at ? String(row.opened_at) : undefined,
@@ -116,6 +116,6 @@ export const mapScheduledCommunication = (row: Record<string, unknown>): Schedul
   scheduledFor: String(row.scheduled_for), recurrenceMonths: row.recurrence_months ? Number(row.recurrence_months) : undefined,
   status: row.status as ScheduledCommunication["status"], createdBy: String(row.created_by),
   sentCommunicationId: row.sent_communication_id ? String(row.sent_communication_id) : undefined,
-  errorMessage: row.error_message ? String(row.error_message) : undefined,
+  errorMessage: row.last_error ? String(row.last_error) : undefined,
   createdAt: String(row.created_at), updatedAt: String(row.updated_at)
 });
