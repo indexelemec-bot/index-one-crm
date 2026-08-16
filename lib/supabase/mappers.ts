@@ -1,4 +1,4 @@
-import type { Account, AssignmentHistory, CommercialReference, Communication, Opportunity, Proposal, SalesReport, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
+import type { Account, AssignmentHistory, CommercialReference, Communication, CommunicationAssignmentHistory, CommunicationThread, MarketingLead, Opportunity, Proposal, SalesReport, ScheduledCommunication, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
 
 export const mapProfile = (row: Record<string, unknown>): UserProfile => ({
   id: String(row.id), fullName: String(row.full_name), email: String(row.email ?? ""),
@@ -73,12 +73,73 @@ export const mapSpeechUsage = (row: Record<string, unknown>): SpeechUsage => ({
 
 export const mapCommunication = (row: Record<string, unknown>): Communication => ({
   id: String(row.id), opportunityId: String(row.opportunity_id), proposalId: row.proposal_id ? String(row.proposal_id) : undefined,
-  stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, channel: row.channel as Communication["channel"],
-  direction: row.direction as Communication["direction"], fromAddress: String(row.from_address), toAddress: String(row.to_address),
-  subject: row.subject ? String(row.subject) : undefined, bodyText: String(row.body_text), templateKey: row.template_key ? String(row.template_key) : undefined,
+  stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, threadId: row.thread_id ? String(row.thread_id) : undefined,
+  channel: row.channel as Communication["channel"], direction: row.direction as Communication["direction"],
+  fromAddress: String(row.from_address ?? ""), toAddress: String(row.to_address ?? ""), subject: row.subject ? String(row.subject) : undefined,
+  bodyText: String(row.body_text ?? ""), templateKey: row.template_key ? String(row.template_key) : undefined,
   provider: row.provider ? String(row.provider) : undefined, providerMessageId: row.provider_message_id ? String(row.provider_message_id) : undefined,
+  providerMediaId: row.provider_media_id ? String(row.provider_media_id) : undefined,
   attachmentFormat: row.attachment_format === "pdf" || row.attachment_format === "docx" ? row.attachment_format : undefined,
   status: String(row.status), errorMessage: row.error_message ? String(row.error_message) : undefined,
-  sentAt: row.sent_at ? String(row.sent_at) : undefined, deliveredAt: row.delivered_at ? String(row.delivered_at) : undefined,
-  openedAt: row.opened_at ? String(row.opened_at) : undefined, createdAt: String(row.created_at)
+  agentId: row.agent_id ? String(row.agent_id) : undefined, agentNameSnapshot: row.agent_name_snapshot ? String(row.agent_name_snapshot) : undefined,
+  messageType: row.message_type ? String(row.message_type) : undefined, mediaPath: row.media_path ? String(row.media_path) : undefined,
+  mediaName: row.media_name ? String(row.media_name) : undefined, mediaMime: row.media_mime_type ? String(row.media_mime_type) : undefined,
+  transcriptionText: row.transcription_text ? String(row.transcription_text) : undefined,
+  transcriptionStatus: row.transcription_status as Communication["transcriptionStatus"],
+  transcriptionError: row.transcription_error ? String(row.transcription_error) : undefined,
+  transcriptionProvider: row.transcription_provider ? String(row.transcription_provider) : undefined,
+  transcriptionLanguage: row.transcription_language ? String(row.transcription_language) : undefined,
+  transcriptionCompletedAt: row.transcription_completed_at ? String(row.transcription_completed_at) : undefined,
+  replyToProviderMessageId: row.reply_to_provider_message_id ? String(row.reply_to_provider_message_id) : undefined,
+  isInternal: Boolean(row.is_internal), sentAt: row.sent_at ? String(row.sent_at) : undefined,
+  deliveredAt: row.delivered_at ? String(row.delivered_at) : undefined, openedAt: row.opened_at ? String(row.opened_at) : undefined,
+  createdAt: String(row.created_at)
+});
+
+export const mapCommunicationThread = (row: Record<string, unknown>): CommunicationThread => ({
+  id: String(row.id), opportunityId: String(row.opportunity_id), stakeholderId: String(row.stakeholder_id),
+  channel: row.channel as CommunicationThread["channel"], assignedTo: row.assigned_to ? String(row.assigned_to) : undefined,
+  status: row.status as CommunicationThread["status"], unreadCount: Number(row.unread_count ?? 0),
+  lastMessageAt: row.last_message_at ? String(row.last_message_at) : undefined,
+  lastInboundAt: row.last_inbound_at ? String(row.last_inbound_at) : undefined,
+  lastOutboundAt: row.last_outbound_at ? String(row.last_outbound_at) : undefined,
+  createdAt: String(row.created_at), updatedAt: String(row.updated_at)
+});
+
+export const mapCommunicationAssignmentHistory = (row: Record<string, unknown>): CommunicationAssignmentHistory => ({
+  id: String(row.id), threadId: String(row.thread_id),
+  previousAgentId: row.previous_agent_id ? String(row.previous_agent_id) : undefined,
+  newAgentId: row.new_agent_id ? String(row.new_agent_id) : undefined,
+  changedBy: String(row.changed_by), reason: row.reason ? String(row.reason) : undefined, changedAt: String(row.changed_at)
+});
+
+export const mapScheduledCommunication = (row: Record<string, unknown>): ScheduledCommunication => ({
+  id: String(row.id), threadId: row.thread_id ? String(row.thread_id) : undefined,
+  opportunityId: String(row.opportunity_id), stakeholderId: String(row.stakeholder_id),
+  channel: row.channel as ScheduledCommunication["channel"], bodyText: String(row.body_text ?? ""),
+  templateKey: row.template_key ? String(row.template_key) : undefined,
+  attachmentPath: row.attachment_path ? String(row.attachment_path) : undefined,
+  attachmentName: row.attachment_name ? String(row.attachment_name) : undefined,
+  scheduledFor: String(row.scheduled_for), recurrenceMonths: row.recurrence_months ? Number(row.recurrence_months) : undefined,
+  status: row.status as ScheduledCommunication["status"], createdBy: String(row.created_by),
+  sentCommunicationId: row.sent_communication_id ? String(row.sent_communication_id) : undefined,
+  errorMessage: row.last_error ? String(row.last_error) : undefined,
+  createdAt: String(row.created_at), updatedAt: String(row.updated_at)
+});
+
+export const mapMarketingLead = (row: Record<string, unknown>): MarketingLead => ({
+  id: String(row.id), provider: String(row.provider ?? "meta"), sourceChannel: String(row.source_channel ?? "other"),
+  leadId: row.lead_id ? String(row.lead_id) : undefined, formId: row.form_id ? String(row.form_id) : undefined,
+  campaignId: row.campaign_id ? String(row.campaign_id) : undefined, campaignName: row.campaign_name ? String(row.campaign_name) : undefined,
+  adId: row.ad_id ? String(row.ad_id) : undefined, adName: row.ad_name ? String(row.ad_name) : undefined,
+  fullName: row.full_name ? String(row.full_name) : undefined, phone: row.phone ? String(row.phone) : undefined,
+  email: row.email ? String(row.email) : undefined, condominiumName: row.condominium_name ? String(row.condominium_name) : undefined,
+  sector: row.sector ? String(row.sector) : undefined, units: row.units ? Number(row.units) : undefined,
+  primaryProblem: row.primary_problem ? String(row.primary_problem) : undefined, stakeholderRole: row.stakeholder_role ? String(row.stakeholder_role) : undefined,
+  boardMember: row.board_member === null || row.board_member === undefined ? undefined : Boolean(row.board_member),
+  wantsAssessment: row.wants_assessment === null || row.wants_assessment === undefined ? undefined : Boolean(row.wants_assessment),
+  status: row.status as MarketingLead["status"], accountId: row.account_id ? String(row.account_id) : undefined,
+  stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, opportunityId: row.opportunity_id ? String(row.opportunity_id) : undefined,
+  assignedTo: row.assigned_to ? String(row.assigned_to) : undefined, errorMessage: row.error_message ? String(row.error_message) : undefined,
+  receivedAt: String(row.received_at), convertedAt: row.converted_at ? String(row.converted_at) : undefined
 });

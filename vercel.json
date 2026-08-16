@@ -1,6 +1,8 @@
 {
   "crons": [
     { "path": "/api/cron/academy-review", "schedule": "0 9 1 */2 *" },
-    { "path": "/api/cron/lost-prospect-followups", "schedule": "15 12 * * *" }
+    { "path": "/api/cron/lost-prospect-followups", "schedule": "15 12 * * *" },
+    { "path": "/api/cron/scheduled-communications", "schedule": "0 13 * * *" },
+    { "path": "/api/cron/transcribe-voice-notes", "schedule": "20 13 * * *" }
   ]
 }

@@ -1,28 +1,245 @@
 "use client";
-import { CheckCircle2, Clock3, Mail, MessageCircle, Plus, Search, Send, ShieldCheck, XCircle } from "lucide-react";
+
+import { CalendarClock, CheckCheck, CircleUserRound, FileText, Mail, MessageCircle, Paperclip, Plus, Search, Send, UserRoundCog, Users, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Modal, PageHeader } from "@/components/ui";
 import { useCrm } from "@/components/crm-provider";
-import { communicationTemplates, renderCommunicationTemplate } from "@/lib/communication-templates";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
-import { mapCommunication } from "@/lib/supabase/mappers";
-import type { Communication } from "@/types/domain";
-const statusLabels:Record<string,string>={draft:"Borrador",queued:"En cola",sent:"Enviado",delivered:"Entregado",opened:"Abierto",delayed:"Demorado",bounced:"Rebotado",failed:"Fallido",complained:"Reportado",received:"Recibido"};
+import { mapCommunication, mapCommunicationThread, mapScheduledCommunication } from "@/lib/supabase/mappers";
+import type { Communication, CommunicationThread, ScheduledCommunication } from "@/types/domain";
+import styles from "./communications.module.css";
 
-export default function CommunicationsPage(){
-  const {accounts,opportunities,stakeholders}=useCrm();const [tab,setTab]=useState<"email"|"whatsapp">("email");const [open,setOpen]=useState(false);const [messages,setMessages]=useState<Communication[]>([]);const [loading,setLoading]=useState(isSupabaseConfigured);const [error,setError]=useState("");const [query,setQuery]=useState("");const [selectedOpportunity,setSelectedOpportunity]=useState("");const [selectedStakeholder,setSelectedStakeholder]=useState("");const [template,setTemplate]=useState("seguimiento");const [subject,setSubject]=useState("");const [body,setBody]=useState("");const [sending,setSending]=useState(false);
-  const load=useCallback(async()=>{const supabase=createClient();if(!supabase){setLoading(false);return}const {data,error}=await supabase.from("communications").select("*").order("created_at",{ascending:false});if(error)setError(error.message);else setMessages((data??[]).map((row)=>mapCommunication(row)));setLoading(false)},[]);
-  useEffect(()=>{void load()},[load]);
-  const activeOpportunity=opportunities.find((item)=>item.id===selectedOpportunity);const account=accounts.find((item)=>item.id===activeOpportunity?.accountId);const contacts=stakeholders.filter((item)=>item.accountId===account?.id&&Boolean(item.email));const filtered=useMemo(()=>messages.filter((item)=>`${item.subject} ${item.toAddress} ${item.bodyText}`.toLowerCase().includes(query.toLowerCase())),[messages,query]);
-  function chooseOpportunity(value:string){setSelectedOpportunity(value);const opp=opportunities.find((item)=>item.id===value);const acct=accounts.find((item)=>item.id===opp?.accountId);const contact=stakeholders.find((item)=>item.accountId===acct?.id&&item.email);setSelectedStakeholder(contact?.id??"");const rendered=renderCommunicationTemplate(template,acct?.name??"el condominio",contact?.fullName??"cliente");setSubject(rendered.subject);setBody(rendered.body)}
-  function chooseTemplate(value:string){setTemplate(value);const contact=stakeholders.find((item)=>item.id===selectedStakeholder);const rendered=renderCommunicationTemplate(value,account?.name??"el condominio",contact?.fullName??"cliente");setSubject(rendered.subject);setBody(rendered.body)}
-  function openComposer(){const first=opportunities[0];setOpen(true);setError("");if(first)chooseOpportunity(first.id)}
-  async function sendEmail(event:React.FormEvent){event.preventDefault();setSending(true);setError("");const response=await fetch("/api/communications/email",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({opportunityId:selectedOpportunity,stakeholderId:selectedStakeholder,templateKey:template,subject,body})});const result=await response.json();if(!response.ok){setError(result.error??"No fue posible enviar el correo.");setSending(false);return}setMessages((items)=>[mapCommunication(result.communication),...items]);setSending(false);setOpen(false)}
-  const sent=messages.filter((item)=>item.channel==="email").length;const delivered=messages.filter((item)=>["delivered","opened"].includes(item.status)).length;const attention=messages.filter((item)=>["failed","bounced","complained"].includes(item.status)).length;
-  return <><PageHeader eyebrow="Expediente omnicanal" title="Comunicaciones con clientes" description="El correo conserva la conversación formal; WhatsApp complementa el seguimiento inmediato sin perder trazabilidad."><button className="button button-primary" onClick={openComposer}><Plus size={18}/> Redactar correo</button></PageHeader>{error&&!open&&<div className="sync-banner sync-error">{error}</div>}<div className="channel-tabs"><button className={tab==="email"?"active":""} onClick={()=>setTab("email")}><Mail size={17}/> Correo formal</button><button className={tab==="whatsapp"?"active":""} onClick={()=>setTab("whatsapp")}><MessageCircle size={17}/> WhatsApp</button></div>
-    {tab==="email"?<><div className="grid communications-kpis"><Metric icon={<Send/>} label="Correos registrados" value={String(sent)}/><Metric icon={<CheckCircle2/>} label="Entregados / abiertos" value={String(delivered)}/><Metric icon={<XCircle/>} label="Requieren atención" value={String(attention)}/></div><div className="toolbar"><label className="search"><Search size={18}/><input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Buscar por cliente, asunto o destinatario…"/></label></div><div className="card communication-list">{loading?<div className="empty-state"><b>Cargando comunicaciones…</b></div>:filtered.length===0?<div className="empty-state"><b>Aún no hay correos registrados</b><p>Redacta el primer mensaje formal desde este módulo.</p></div>:filtered.map((message)=>{const opportunity=opportunities.find((item)=>item.id===message.opportunityId);const acct=accounts.find((item)=>item.id===opportunity?.accountId);return <article className="communication-row" key={message.id}><span className="channel-icon"><Mail size={18}/></span><div><div className="communication-heading"><b>{message.subject}</b><span className={`status-pill message-${message.status}`}>{statusLabels[message.status]??message.status}</span></div><small>{acct?.name??"Cuenta"} · Para: {message.toAddress}</small><p>{message.bodyText.slice(0,180)}{message.bodyText.length>180?"…":""}</p><small><Clock3 size={11}/>{new Date(message.sentAt??message.createdAt).toLocaleString("es-DO")}{message.errorMessage&&` · ${message.errorMessage}`}</small></div></article>})}</div></>:<WhatsAppAssessment stakeholders={stakeholders}/>} 
-    {open&&<Modal title="Redactar correo formal" description="El mensaje y su estado de entrega quedarán asociados al expediente comercial." onClose={()=>setOpen(false)} wide><form onSubmit={sendEmail}>{error&&<div className="sync-banner sync-error">{error}</div>}<div className="form-grid"><label className="field"><span>Oportunidad / cliente</span><select value={selectedOpportunity} onChange={(e)=>chooseOpportunity(e.target.value)} required>{opportunities.map((opp)=>{const acct=accounts.find((item)=>item.id===opp.accountId);return <option value={opp.id} key={opp.id}>{acct?.name}</option>})}</select></label><label className="field"><span>Destinatario</span><select value={selectedStakeholder} onChange={(e)=>setSelectedStakeholder(e.target.value)} required>{contacts.map((contact)=><option value={contact.id} key={contact.id}>{contact.fullName} · {contact.email}</option>)}</select></label><label className="field field-wide"><span>Plantilla</span><select value={template} onChange={(e)=>chooseTemplate(e.target.value)}>{communicationTemplates.map((item)=><option value={item.id} key={item.id}>{item.label}</option>)}</select></label><label className="field field-wide"><span>Asunto</span><input value={subject} onChange={(e)=>setSubject(e.target.value)} required/></label><label className="field field-wide"><span>Mensaje</span><textarea className="email-body" value={body} onChange={(e)=>setBody(e.target.value)} required/></label><div className="formal-note field-wide"><ShieldCheck size={16}/> Identidad INDEX CONDO · respuestas centralizadas en ventas@indexelemecsrl.com.</div></div><div className="form-actions"><button type="button" className="button" onClick={()=>setOpen(false)}>Cancelar</button><button className="button button-primary" disabled={sending||!selectedStakeholder}>{sending?"Enviando…":<><Send size={16}/> Enviar y registrar</>}</button></div></form></Modal>}
+const stageLabel: Record<string, string> = {
+  prospecto_identificado: "Prospecto identificado", problema_detectado: "Problema detectado", contacto_decisor: "Contacto con decisores",
+  diagnostico: "Diagnóstico", solucion_recomendada: "Solución recomendada", presentacion: "Reunión / presentación",
+  propuesta: "Propuesta económica", negociacion: "Evaluación / negociación", aprobacion: "Aprobación solución",
+  contrato_transicion: "Contrato / transición", cliente_activo: "Cliente activo", perdida: "Prospecto descartado"
+};
+
+export default function CommunicationsPage() {
+  const { accounts, opportunities, stakeholders, users } = useCrm();
+  const [tab, setTab] = useState<"whatsapp" | "email" | "scheduled">("whatsapp");
+  const [messages, setMessages] = useState<Communication[]>([]);
+  const [threads, setThreads] = useState<CommunicationThread[]>([]);
+  const [scheduled, setScheduled] = useState<ScheduledCommunication[]>([]);
+  const [query, setQuery] = useState("");
+  const [activeThreadId, setActiveThreadId] = useState("");
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(isSupabaseConfigured);
+  const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
+  const [newOpen, setNewOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [newOpportunityId, setNewOpportunityId] = useState("");
+  const [newStakeholderId, setNewStakeholderId] = useState("");
+  const [newAgentId, setNewAgentId] = useState("");
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [scheduleBody, setScheduleBody] = useState("");
+  const [scheduleRecurrence, setScheduleRecurrence] = useState("");
+
+  const load = useCallback(async () => {
+    const supabase = createClient();
+    if (!supabase) { setLoading(false); return; }
+    const [messageResult, threadResult, scheduleResult] = await Promise.all([
+      supabase.from("communications").select("*").order("created_at", { ascending: true }),
+      supabase.from("communication_threads").select("*").order("last_message_at", { ascending: false, nullsFirst: false }),
+      supabase.from("scheduled_communications").select("*").order("scheduled_for", { ascending: true })
+    ]);
+    if (messageResult.error) setError(messageResult.error.message);
+    else setMessages((messageResult.data ?? []).map((row) => mapCommunication(row)));
+    if (!threadResult.error) setThreads((threadResult.data ?? []).map((row) => mapCommunicationThread(row)));
+    if (!scheduleResult.error) setScheduled((scheduleResult.data ?? []).map((row) => mapScheduledCommunication(row)));
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const derivedThreads = useMemo(() => {
+    if (threads.length) return threads;
+    const seen = new Map<string, CommunicationThread>();
+    messages.filter((item) => item.channel === "whatsapp" && item.stakeholderId).forEach((item) => {
+      const key = `${item.opportunityId}:${item.stakeholderId}`;
+      const prior = seen.get(key);
+      if (!prior || new Date(item.createdAt) > new Date(prior.lastMessageAt ?? prior.createdAt)) {
+        seen.set(key, {
+          id: key, opportunityId: item.opportunityId, stakeholderId: item.stakeholderId!, channel: "whatsapp", status: "open",
+          unreadCount: 0, lastMessageAt: item.createdAt, lastInboundAt: item.direction === "inbound" ? item.createdAt : prior?.lastInboundAt,
+          lastOutboundAt: item.direction === "outbound" ? item.createdAt : prior?.lastOutboundAt, createdAt: prior?.createdAt ?? item.createdAt, updatedAt: item.createdAt
+        });
+      }
+    });
+    return [...seen.values()].sort((a, b) => new Date(b.lastMessageAt ?? b.updatedAt).getTime() - new Date(a.lastMessageAt ?? a.updatedAt).getTime());
+  }, [threads, messages]);
+
+  const visibleThreads = useMemo(() => derivedThreads.filter((thread) => {
+    const stakeholder = stakeholders.find((item) => item.id === thread.stakeholderId);
+    const opportunity = opportunities.find((item) => item.id === thread.opportunityId);
+    const account = accounts.find((item) => item.id === opportunity?.accountId);
+    return `${stakeholder?.fullName ?? ""} ${account?.name ?? ""} ${stakeholder?.phone ?? ""}`.toLowerCase().includes(query.toLowerCase());
+  }), [derivedThreads, stakeholders, opportunities, accounts, query]);
+
+  useEffect(() => { if (!activeThreadId && visibleThreads[0]) setActiveThreadId(visibleThreads[0].id); }, [activeThreadId, visibleThreads]);
+
+  const activeThread = visibleThreads.find((item) => item.id === activeThreadId) ?? derivedThreads.find((item) => item.id === activeThreadId);
+  const activeStakeholder = stakeholders.find((item) => item.id === activeThread?.stakeholderId);
+  const activeOpportunity = opportunities.find((item) => item.id === activeThread?.opportunityId);
+  const activeAccount = accounts.find((item) => item.id === activeOpportunity?.accountId);
+  const assignedAgent = users.find((item) => item.id === activeThread?.assignedTo) ?? users.find((item) => item.id === activeOpportunity?.ownerId);
+  const activeMessages = messages.filter((item) => item.channel === "whatsapp" && item.opportunityId === activeThread?.opportunityId && item.stakeholderId === activeThread?.stakeholderId);
+  const newOpportunity = opportunities.find((item) => item.id === newOpportunityId);
+  const newAccount = accounts.find((item) => item.id === newOpportunity?.accountId);
+  const availableContacts = stakeholders.filter((item) => item.accountId === newAccount?.id && Boolean(item.phone));
+  const activeUsers = users.filter((item) => item.active && !item.deletedAt);
+
+  function openNewConversation() {
+    const opportunity = opportunities.find((item) => item.stage !== "cliente_activo" && item.stage !== "perdida") ?? opportunities[0];
+    setNewOpportunityId(opportunity?.id ?? "");
+    const account = accounts.find((item) => item.id === opportunity?.accountId);
+    setNewStakeholderId(stakeholders.find((item) => item.accountId === account?.id && item.phone)?.id ?? "");
+    setNewAgentId(opportunity?.ownerId ?? "");
+    setError("");
+    setNewOpen(true);
+  }
+
+  function changeNewOpportunity(id: string) {
+    setNewOpportunityId(id);
+    const opportunity = opportunities.find((item) => item.id === id);
+    const account = accounts.find((item) => item.id === opportunity?.accountId);
+    setNewStakeholderId(stakeholders.find((item) => item.accountId === account?.id && item.phone)?.id ?? "");
+    setNewAgentId(opportunity?.ownerId ?? "");
+  }
+
+  async function createConversation(event: React.FormEvent) {
+    event.preventDefault(); setError("");
+    const response = await fetch("/api/communications/threads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunityId: newOpportunityId, stakeholderId: newStakeholderId, channel: "whatsapp", assignedTo: newAgentId || undefined }) });
+    const result = await response.json();
+    if (!response.ok) { setError(result.error ?? "No fue posible crear la conversación."); return; }
+    const thread = mapCommunicationThread(result.thread);
+    setThreads((items) => [thread, ...items.filter((item) => item.id !== thread.id)]);
+    setActiveThreadId(thread.id); setNewOpen(false); setTab("whatsapp");
+  }
+
+  async function sendMessage() {
+    if (!draft.trim() || !activeThread || activeThread.id.includes(":")) return;
+    setSending(true); setError("");
+    const response = await fetch("/api/communications/whatsapp/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: activeThread.id, body: draft.trim(), simulate: true }) });
+    const result = await response.json();
+    if (!response.ok) { setError(result.error ?? "No fue posible registrar el mensaje."); setSending(false); return; }
+    setMessages((items) => [...items, mapCommunication(result.communication)]);
+    setDraft(""); setSending(false);
+    await load();
+  }
+
+  async function reassignConversation(agentId: string) {
+    if (!activeThread || activeThread.id.includes(":")) return;
+    setError("");
+    const response = await fetch("/api/communications/threads", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: activeThread.id, assignedTo: agentId || null, reason: "Reasignación desde bandeja de WhatsApp" }) });
+    const result = await response.json();
+    if (!response.ok) { setError(result.error ?? "No fue posible reasignar la conversación."); return; }
+    const thread = mapCommunicationThread(result.thread);
+    setThreads((items) => items.map((item) => item.id === thread.id ? thread : item));
+  }
+
+  function openSchedule() {
+    if (!activeThread) return;
+    const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    setScheduleAt(date.toISOString().slice(0, 16));
+    setScheduleBody(draft.trim());
+    setScheduleRecurrence("");
+    setError("");
+    setScheduleOpen(true);
+  }
+
+  async function createSchedule(event: React.FormEvent) {
+    event.preventDefault();
+    if (!activeThread) return;
+    const response = await fetch("/api/communications/scheduled", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ threadId: activeThread.id.includes(":") ? undefined : activeThread.id, opportunityId: activeThread.opportunityId, stakeholderId: activeThread.stakeholderId, channel: "whatsapp", body: scheduleBody, scheduledFor: new Date(scheduleAt).toISOString(), recurrenceMonths: scheduleRecurrence ? Number(scheduleRecurrence) : undefined }) });
+    const result = await response.json();
+    if (!response.ok) { setError(result.error ?? "No fue posible programar el seguimiento."); return; }
+    setScheduled((items) => [...items, mapScheduledCommunication(result.scheduled)].sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime()));
+    setScheduleOpen(false); setTab("scheduled");
+  }
+
+  async function cancelSchedule(id: string) {
+    const response = await fetch("/api/communications/scheduled", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    const result = await response.json();
+    if (!response.ok) { setError(result.error ?? "No fue posible cancelar el seguimiento."); return; }
+    const item = mapScheduledCommunication(result.scheduled);
+    setScheduled((items) => items.map((entry) => entry.id === id ? item : entry));
+  }
+
+  return <>
+    <PageHeader eyebrow="Centro de comunicaciones" title="Conversaciones comerciales" description="Correo, WhatsApp y seguimientos programados en un solo expediente comercial." />
+    {error && !newOpen && !scheduleOpen && <div className="sync-banner sync-error">{error}</div>}
+    <div className={styles.tabs}>
+      <button className={tab === "whatsapp" ? styles.activeTab : ""} onClick={() => setTab("whatsapp")}><MessageCircle size={17}/> WhatsApp</button>
+      <button className={tab === "email" ? styles.activeTab : ""} onClick={() => setTab("email")}><Mail size={17}/> Correo</button>
+      <button className={tab === "scheduled" ? styles.activeTab : ""} onClick={() => setTab("scheduled")}><CalendarClock size={17}/> Programados <span>{scheduled.filter((item) => item.status === "scheduled").length}</span></button>
+    </div>
+
+    {tab === "whatsapp" && <div className={styles.workspace}>
+      <aside className={styles.inbox}>
+        <div className={styles.inboxHeader}><div><b>WhatsApp</b><small>Número corporativo INDEX CONDO</small></div><button title="Nueva conversación" onClick={openNewConversation}><Plus size={18}/></button></div>
+        <label className={styles.search}><Search size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar conversación…"/></label>
+        <div className={styles.threadList}>
+          {loading ? <div className={styles.empty}>Cargando conversaciones…</div> : visibleThreads.length === 0 ? <div className={styles.empty}><MessageCircle size={28}/><b>Sin conversaciones todavía</b><span>Crea la primera conversación con un contacto que tenga WhatsApp registrado.</span></div> : visibleThreads.map((thread) => {
+            const stakeholder = stakeholders.find((item) => item.id === thread.stakeholderId);
+            const opportunity = opportunities.find((item) => item.id === thread.opportunityId);
+            const account = accounts.find((item) => item.id === opportunity?.accountId);
+            const last = messages.filter((item) => item.opportunityId === thread.opportunityId && item.stakeholderId === thread.stakeholderId && item.channel === "whatsapp").at(-1);
+            return <button key={thread.id} className={`${styles.thread} ${activeThreadId === thread.id ? styles.activeThread : ""}`} onClick={() => setActiveThreadId(thread.id)}>
+              <span className={styles.avatar}>{(stakeholder?.fullName ?? "C").split(" ").slice(0, 2).map((part) => part[0]).join("")}</span>
+              <span className={styles.threadText}><span><b>{stakeholder?.fullName ?? "Contacto"}</b><time>{thread.lastMessageAt ? new Date(thread.lastMessageAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" }) : ""}</time></span><small>{account?.name ?? "Cuenta"}</small><p>{last?.bodyText || stakeholder?.phone || "Conversación preparada"}</p></span>
+              {thread.unreadCount > 0 && <em>{thread.unreadCount}</em>}
+            </button>;
+          })}
+        </div>
+      </aside>
+
+      <section className={styles.chat}>
+        {!activeThread ? <div className={styles.chatPlaceholder}><MessageCircle size={48}/><h2>Centro WhatsApp</h2><p>Selecciona una conversación o crea una nueva para comenzar.</p><span>Modo de pruebas · No se enviarán mensajes reales todavía.</span></div> : <>
+          <header className={styles.chatHeader}>
+            <span className={styles.avatar}>{(activeStakeholder?.fullName ?? "C").split(" ").slice(0, 2).map((part) => part[0]).join("")}</span>
+            <div><b>{activeStakeholder?.fullName}</b><small>{activeAccount?.name} · {activeStakeholder?.phone}</small></div>
+            <label className={styles.agentSelect}><UserRoundCog size={15}/><span><small>Atiende</small><select value={assignedAgent?.id ?? ""} onChange={(event) => void reassignConversation(event.target.value)}>{activeUsers.map((user) => <option value={user.id} key={user.id}>{user.fullName}</option>)}</select></span></label>
+          </header>
+          <div className={styles.notice}>Modo simulación activo. Los mensajes se guardan en staging, pero no salen al WhatsApp real.</div>
+          <div className={styles.messages}>
+            {activeMessages.length === 0 && <div className={styles.firstMessage}><CircleUserRound size={22}/><div><b>Inicio de conversación</b><p>El primer mensaje del agente incluirá su presentación visible para que el cliente sepa quién le está atendiendo.</p></div></div>}
+            {activeMessages.map((message) => <div key={message.id} className={`${styles.bubbleRow} ${message.direction === "outbound" ? styles.outbound : styles.inbound}`}>
+              <div className={styles.bubble}>{message.agentNameSnapshot && message.direction === "outbound" && <small className={styles.agentName}>{message.agentNameSnapshot}</small>}<p>{message.bodyText}</p><span>{new Date(message.sentAt ?? message.createdAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}{message.direction === "outbound" && <CheckCheck size={14}/>}</span></div>
+            </div>)}
+          </div>
+          <footer className={styles.composer}><button title="Adjuntar documento"><Paperclip size={20}/></button><button title="Programar seguimiento" onClick={openSchedule}><CalendarClock size={20}/></button><textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Escribe un mensaje…" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendMessage(); } }}/><button className={styles.sendButton} onClick={() => void sendMessage()} disabled={!draft.trim() || sending || activeThread.id.includes(":")}><Send size={19}/></button></footer>
+        </>}
+      </section>
+
+      <aside className={styles.context}>
+        {activeThread ? <>
+          <div className={styles.contextTitle}><span className={styles.largeAvatar}>{(activeStakeholder?.fullName ?? "C").split(" ").slice(0, 2).map((part) => part[0]).join("")}</span><h3>{activeStakeholder?.fullName}</h3><p>{activeStakeholder?.role.replaceAll("_", " ")}</p></div>
+          <div className={styles.contextBlock}><small>CUENTA</small><b>{activeAccount?.name}</b><span>{activeAccount?.units ? `${activeAccount.units} unidades` : "Sin unidades registradas"}</span></div>
+          <div className={styles.contextBlock}><small>ETAPA COMERCIAL</small><b>{stageLabel[activeOpportunity?.stage ?? ""] ?? activeOpportunity?.stage}</b><span>{activeOpportunity?.probability ?? 0}% avance de cierre</span></div>
+          <div className={styles.contextBlock}><small>PRÓXIMA ACCIÓN</small><b>{activeOpportunity?.nextAction || "Sin acción definida"}</b><span>{activeOpportunity?.nextActionAt ? new Date(activeOpportunity.nextActionAt).toLocaleString("es-DO") : "Sin fecha"}</span></div>
+          <div className={styles.contextBlock}><small>HONORARIOS PROSPECTADOS</small><b>{new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP", maximumFractionDigits: 0 }).format(activeOpportunity?.monthlyFee ?? 0)}</b><span>Mensuales</span></div>
+          <button className={styles.contextAction}><FileText size={17}/> Abrir expediente comercial</button>
+        </> : <div className={styles.contextEmpty}>Selecciona una conversación para ver los datos comerciales.</div>}
+      </aside>
+    </div>}
+
+    {tab === "email" && <div className={styles.secondaryPanel}><Mail size={38}/><h2>Correo formal</h2><p>El envío formal existente se mantiene disponible mientras terminamos de unificarlo con la nueva bandeja.</p></div>}
+
+    {tab === "scheduled" && <div className={styles.scheduleGrid}>
+      {scheduled.length === 0 ? <div className={styles.secondaryPanel}><CalendarClock size={38}/><h2>No hay mensajes programados</h2><p>Desde una conversación podrás programar seguimientos únicos o recurrentes.</p></div> : scheduled.map((item) => {
+        const contact = stakeholders.find((entry) => entry.id === item.stakeholderId);
+        const opportunity = opportunities.find((entry) => entry.id === item.opportunityId);
+        const account = accounts.find((entry) => entry.id === opportunity?.accountId);
+        return <article className={styles.scheduleCard} key={item.id}><span><CalendarClock size={19}/></span><div><b>{contact?.fullName ?? "Contacto"} · {account?.name ?? "Cuenta"}</b><p>{item.bodyText}</p><small>{new Date(item.scheduledFor).toLocaleString("es-DO")} · {item.recurrenceMonths ? `Cada ${item.recurrenceMonths} meses` : "Una vez"}</small></div><div className={styles.scheduleActions}><em>{item.status}</em>{item.status === "scheduled" && <button onClick={() => void cancelSchedule(item.id)} title="Cancelar"><XCircle size={17}/></button>}</div></article>;
+      })}
+    </div>}
+
+    {newOpen && <Modal title="Nueva conversación de WhatsApp" description="Selecciona la oportunidad, el contacto y el agente responsable." onClose={() => setNewOpen(false)}><form onSubmit={createConversation}>{error && <div className="sync-banner sync-error">{error}</div>}<div className="form-grid"><label className="field field-wide"><span>Prospecto / oportunidad</span><select value={newOpportunityId} onChange={(event) => changeNewOpportunity(event.target.value)} required>{opportunities.filter((item) => item.stage !== "cliente_activo").map((opportunity) => <option value={opportunity.id} key={opportunity.id}>{accounts.find((item) => item.id === opportunity.accountId)?.name ?? "Cuenta"} · {stageLabel[opportunity.stage]}</option>)}</select></label><label className="field field-wide"><span>Contacto con WhatsApp</span><select value={newStakeholderId} onChange={(event) => setNewStakeholderId(event.target.value)} required>{availableContacts.map((contact) => <option value={contact.id} key={contact.id}>{contact.fullName} · {contact.phone}</option>)}</select></label><label className="field field-wide"><span>Agente responsable</span><select value={newAgentId} onChange={(event) => setNewAgentId(event.target.value)} required>{activeUsers.map((user) => <option value={user.id} key={user.id}>{user.fullName}</option>)}</select></label></div><div className="form-actions"><button type="button" className="button" onClick={() => setNewOpen(false)}>Cancelar</button><button className="button button-primary" disabled={!newStakeholderId || !newAgentId}><MessageCircle size={16}/> Crear conversación</button></div></form></Modal>}
+
+    {scheduleOpen && activeThread && <Modal title="Programar seguimiento" description={`WhatsApp para ${activeStakeholder?.fullName ?? "el contacto"}.`} onClose={() => setScheduleOpen(false)}><form onSubmit={createSchedule}>{error && <div className="sync-banner sync-error">{error}</div>}<div className="form-grid"><label className="field field-wide"><span>Mensaje</span><textarea value={scheduleBody} onChange={(event) => setScheduleBody(event.target.value)} required/></label><label className="field"><span>Fecha y hora</span><input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} required/></label><label className="field"><span>Recurrencia</span><select value={scheduleRecurrence} onChange={(event) => setScheduleRecurrence(event.target.value)}><option value="">Una sola vez</option><option value="1">Cada mes</option><option value="3">Cada 3 meses</option><option value="6">Cada 6 meses</option><option value="12">Cada 12 meses</option></select></label></div><div className="form-actions"><button type="button" className="button" onClick={() => setScheduleOpen(false)}>Cancelar</button><button className="button button-primary"><CalendarClock size={16}/> Programar</button></div></form></Modal>}
   </>;
 }
-function Metric({icon,label,value}:{icon:React.ReactNode;label:string;value:string}){return <article className="card communication-metric"><span>{icon}</span><div><b>{value}</b><small>{label}</small></div></article>}
-function WhatsAppAssessment({stakeholders}:{stakeholders:{phone:string}[]}){const withPhone=stakeholders.filter((item)=>item.phone).length;return <div className="whatsapp-grid"><section className="card whatsapp-recommendation"><div className="whatsapp-title"><MessageCircle size={28}/><div><span className="eyebrow">Evaluación recomendada</span><h2>WhatsApp como canal complementario</h2></div></div><p>Úsalo para confirmar reuniones, avisar que una propuesta fue enviada y responder consultas rápidas. El correo debe conservar propuestas, acuerdos, cambios de precio y aprobaciones.</p><div className="whatsapp-flow"><span>WhatsApp breve</span><b>→</b><span>Correo formal</span><b>→</b><span>Registro CRM</span></div><ul><li>{withPhone} contactos actuales tienen teléfono registrado.</li><li>Se requiere consentimiento para comunicaciones iniciadas por INDEX CONDO.</li><li>Fuera de la ventana de 24 horas se necesitan plantillas aprobadas.</li><li>Los mensajes entrantes y salientes deben llegar por webhook al expediente.</li></ul></section><section className="card provider-card"><h2>Ruta de implementación</h2><ol><li><b>Piloto:</b> Twilio Sandbox para validar textos, webhooks y experiencia.</li><li><b>Producción:</b> número corporativo, WhatsApp Business Account y plantillas.</li><li><b>CRM:</b> bandeja unificada, consentimiento, ventana activa y estados.</li></ol><div className="provider-decision"><CheckCircle2 size={18}/><span><b>Recomendación</b><small>Activarlo después de estabilizar el correo y aprobar 3 plantillas: seguimiento, reunión y propuesta enviada.</small></span></div></section></div>}

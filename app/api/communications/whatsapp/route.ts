@@ -13,6 +13,21 @@ const schema = z.object({
   body: z.string().trim().min(10).max(4000)
 });
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function loadProposalWithPersistenceWait(supabase: Awaited<ReturnType<typeof createClient>>, proposalId: string) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    try {
+      return await loadProposalDeliveryFile(supabase!, proposalId);
+    } catch (error) {
+      lastError = error;
+      if (attempt < 6) await sleep(350 + attempt * 150);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("La propuesta todavía no está disponible para enviar.");
+}
+
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Revisa la propuesta, el contacto y el mensaje." }, { status: 400 });
@@ -22,8 +37,15 @@ export async function POST(request: Request) {
   if (!authData.user) return NextResponse.json({ error: "Sesión no disponible." }, { status: 401 });
 
   let delivery: Awaited<ReturnType<typeof loadProposalDeliveryFile>>;
-  try { delivery = await loadProposalDeliveryFile(supabase, parsed.data.proposalId); }
-  catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "No fue posible preparar la propuesta." }, { status: 400 }); }
+  try { delivery = await loadProposalWithPersistenceWait(supabase, parsed.data.proposalId); }
+  catch (error) {
+    return NextResponse.json({
+      error: error instanceof Error && !error.message.includes("no está disponible")
+        ? error.message
+        : "La propuesta todavía se está guardando. Espera unos segundos y vuelve a intentar el envío."
+    }, { status: 409 });
+  }
+
   const opportunityId = String(delivery.proposal.opportunity_id);
   const { data: opportunity, error: opportunityError } = await supabase.from("opportunities").select("id,account_id").eq("id", opportunityId).single();
   if (opportunityError || !opportunity) return NextResponse.json({ error: "La oportunidad no está disponible para este usuario." }, { status: 403 });
@@ -41,19 +63,33 @@ export async function POST(request: Request) {
   if (signedError || !signed?.signedUrl) return NextResponse.json({ error: "No fue posible crear el enlace privado de la propuesta." }, { status: 500 });
 
   const message = `${parsed.data.body}\n\nDocumento privado disponible durante 7 días:\n${signed.signedUrl}`;
-  let whatsappUrl: string | undefined; let provider = "wa.me"; let providerMessageId: string | undefined; let status = "queued";
-  const metaToken = process.env.WHATSAPP_ACCESS_TOKEN; const phoneNumberId = process.env.WHATSAPP_BUSINESS_PHONE_NUMBER_ID;
-  if (metaToken && phoneNumberId) {
+  let whatsappUrl: string | undefined;
+  let provider = "wa.me";
+  let providerMessageId: string | undefined;
+  let status = "queued";
+  const realSendingEnabled = process.env.WHATSAPP_REAL_SEND_ENABLED === "true";
+  const metaToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_BUSINESS_PHONE_NUMBER_ID;
+
+  if (realSendingEnabled) {
+    if (!metaToken || !phoneNumberId) return NextResponse.json({ error: "WhatsApp Business todavía no está configurado para envío real." }, { status: 503 });
     const digits = String(stakeholder.phone).replace(/\D/g, "");
     const graphVersion = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
-    const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, { method: "POST", headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "text", text: { preview_url: true, body: message } }) });
+    const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "text", text: { preview_url: true, body: message } })
+    });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.messages?.[0]?.id) return NextResponse.json({ error: result.error?.message ?? "WhatsApp Business no confirmó el envío." }, { status: 502 });
-    provider = "meta_whatsapp"; providerMessageId = result.messages[0].id; status = "sent";
+    provider = "meta_whatsapp";
+    providerMessageId = result.messages[0].id;
+    status = "sent";
   } else {
     try { whatsappUrl = buildWhatsAppUrl(String(stakeholder.phone), message); }
     catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Número de WhatsApp inválido." }, { status: 400 }); }
   }
+
   const createdAt = new Date().toISOString();
   const messageId = crypto.randomUUID();
   const { data: communication, error: recordError } = await supabase.from("communications").insert({
