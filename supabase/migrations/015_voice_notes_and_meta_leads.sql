@@ -1,6 +1,7 @@
 -- INDEX ONE: WhatsApp voice notes + Meta/Instagram lead capture
 
 alter table public.communications
+  add column if not exists provider_media_id text,
   add column if not exists transcription_text text,
   add column if not exists transcription_status text not null default 'not_requested'
     check (transcription_status in ('not_requested','pending','processing','completed','failed')),
