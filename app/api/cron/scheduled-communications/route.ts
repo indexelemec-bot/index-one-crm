@@ -30,9 +30,20 @@ async function processDueCommunications() {
   let simulated = 0;
   let failed = 0;
   let rescheduled = 0;
+  let skipped = 0;
 
   for (const item of due ?? []) {
-    await admin.from("scheduled_communications").update({ status: "processing", updated_at: now.toISOString() }).eq("id", item.id).eq("status", "scheduled");
+    const { data: claimed } = await admin.from("scheduled_communications")
+      .update({ status: "processing", updated_at: now.toISOString() })
+      .eq("id", item.id)
+      .eq("status", "scheduled")
+      .select("id")
+      .maybeSingle();
+
+    if (!claimed) {
+      skipped += 1;
+      continue;
+    }
 
     try {
       if (item.channel !== "whatsapp") throw new Error("El procesador automático de correo todavía no está habilitado.");
@@ -134,11 +145,11 @@ async function processDueCommunications() {
     } catch (cause) {
       failed += 1;
       const message = cause instanceof Error ? cause.message : "No fue posible procesar el seguimiento programado.";
-      await admin.from("scheduled_communications").update({ status: "failed", last_error: message, updated_at: new Date().toISOString() }).eq("id", item.id);
+      await admin.from("scheduled_communications").update({ status: "failed", last_error: message, updated_at: new Date().toISOString() }).eq("id", item.id).eq("status", "processing");
     }
   }
 
-  return NextResponse.json({ ok: true, processed: due?.length ?? 0, sent, simulated, failed, rescheduled });
+  return NextResponse.json({ ok: true, processed: due?.length ?? 0, sent, simulated, failed, rescheduled, skipped });
 }
 
 export async function GET(request: Request) {
