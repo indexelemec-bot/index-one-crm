@@ -63,19 +63,33 @@ export async function POST(request: Request) {
   if (signedError || !signed?.signedUrl) return NextResponse.json({ error: "No fue posible crear el enlace privado de la propuesta." }, { status: 500 });
 
   const message = `${parsed.data.body}\n\nDocumento privado disponible durante 7 días:\n${signed.signedUrl}`;
-  let whatsappUrl: string | undefined; let provider = "wa.me"; let providerMessageId: string | undefined; let status = "queued";
-  const metaToken = process.env.WHATSAPP_ACCESS_TOKEN; const phoneNumberId = process.env.WHATSAPP_BUSINESS_PHONE_NUMBER_ID;
-  if (metaToken && phoneNumberId) {
+  let whatsappUrl: string | undefined;
+  let provider = "wa.me";
+  let providerMessageId: string | undefined;
+  let status = "queued";
+  const realSendingEnabled = process.env.WHATSAPP_REAL_SEND_ENABLED === "true";
+  const metaToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_BUSINESS_PHONE_NUMBER_ID;
+
+  if (realSendingEnabled) {
+    if (!metaToken || !phoneNumberId) return NextResponse.json({ error: "WhatsApp Business todavía no está configurado para envío real." }, { status: 503 });
     const digits = String(stakeholder.phone).replace(/\D/g, "");
     const graphVersion = process.env.WHATSAPP_GRAPH_VERSION || "v23.0";
-    const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, { method: "POST", headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "text", text: { preview_url: true, body: message } }) });
+    const response = await fetch(`https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${metaToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: digits, type: "text", text: { preview_url: true, body: message } })
+    });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.messages?.[0]?.id) return NextResponse.json({ error: result.error?.message ?? "WhatsApp Business no confirmó el envío." }, { status: 502 });
-    provider = "meta_whatsapp"; providerMessageId = result.messages[0].id; status = "sent";
+    provider = "meta_whatsapp";
+    providerMessageId = result.messages[0].id;
+    status = "sent";
   } else {
     try { whatsappUrl = buildWhatsAppUrl(String(stakeholder.phone), message); }
     catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Número de WhatsApp inválido." }, { status: 400 }); }
   }
+
   const createdAt = new Date().toISOString();
   const messageId = crypto.randomUUID();
   const { data: communication, error: recordError } = await supabase.from("communications").insert({
