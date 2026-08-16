@@ -1,5 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { createClient as createServerClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -9,15 +10,11 @@ function addMonths(date: Date, months: number) {
   return copy;
 }
 
-export async function GET(request: Request) {
-  if (!process.env.CRON_SECRET || request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-  }
-
+async function processDueCommunications() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return NextResponse.json({ error: "Supabase no configurado." }, { status: 503 });
-  const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
+  const admin = createAdminClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
   const now = new Date();
 
   const { data: due, error } = await admin.from("scheduled_communications")
@@ -142,4 +139,25 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ ok: true, processed: due?.length ?? 0, sent, simulated, failed, rescheduled });
+}
+
+export async function GET(request: Request) {
+  if (!process.env.CRON_SECRET || request.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+  return processDueCommunications();
+}
+
+export async function POST() {
+  const supabase = await createServerClient();
+  if (!supabase) return NextResponse.json({ error: "Supabase no está configurado." }, { status: 503 });
+  const { data: authData } = await supabase.auth.getUser();
+  if (!authData.user) return NextResponse.json({ error: "Sesión no disponible." }, { status: 401 });
+
+  const { data: profile } = await supabase.from("profiles").select("role,active,deleted_at").eq("id", authData.user.id).maybeSingle();
+  if (!profile || !profile.active || profile.deleted_at || !["superadmin", "gerencia_comercial"].includes(profile.role)) {
+    return NextResponse.json({ error: "No tienes permiso para procesar seguimientos programados." }, { status: 403 });
+  }
+
+  return processDueCommunications();
 }
