@@ -100,3 +100,5 @@ Solo se fusiona a `main` cuando:
 4. usuarios de prueba no puedan acceder a carteras no autorizadas;
 5. usuario apruebe visualmente la bandeja;
 6. envío/recepción con número de prueba sea satisfactorio.
+
+<!-- Preview deployment refresh: 2026-08-16 -->
