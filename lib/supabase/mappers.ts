@@ -1,4 +1,4 @@
-import type { Account, AssignmentHistory, CommercialReference, Communication, CommunicationAssignmentHistory, CommunicationThread, MarketingLead, Opportunity, Proposal, SalesReport, ScheduledCommunication, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
+import type { Account, AssignmentHistory, CommercialReference, CommissionPaymentHistory, Communication, CommunicationAssignmentHistory, CommunicationThread, MarketingLead, Opportunity, Proposal, SalesReport, ScheduledCommunication, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
 
 export const mapProfile = (row: Record<string, unknown>): UserProfile => ({
   id: String(row.id), fullName: String(row.full_name), email: String(row.email ?? ""),
@@ -56,7 +56,15 @@ export const mapSalesReport = (row: Record<string, unknown>): SalesReport => ({
   commissionAmount: Number(row.commission_amount), commissionStatus: row.commission_status as SalesReport["commissionStatus"],
   firstPaymentReceivedAt: row.first_payment_received_at ? String(row.first_payment_received_at) : undefined,
   commissionPaidAt: row.commission_paid_at ? String(row.commission_paid_at) : undefined,
+  commissionPaidBy: row.commission_paid_by ? String(row.commission_paid_by) : undefined,
   contractReference: String(row.contract_reference), notes: row.notes ? String(row.notes) : undefined, createdAt: String(row.created_at)
+});
+
+export const mapCommissionPaymentHistory = (row: Record<string, unknown>): CommissionPaymentHistory => ({
+  id: String(row.id), salesReportId: String(row.sales_report_id),
+  previousStatus: row.previous_status as CommissionPaymentHistory["previousStatus"],
+  newStatus: row.new_status as CommissionPaymentHistory["newStatus"], changedBy: String(row.changed_by),
+  changedAt: String(row.changed_at), notes: row.notes ? String(row.notes) : undefined
 });
 
 export const mapAssignmentHistory = (row: Record<string, unknown>): AssignmentHistory => ({
