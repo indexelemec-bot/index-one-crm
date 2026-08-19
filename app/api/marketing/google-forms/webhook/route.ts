@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     "Nombre"
   ]);
   const phone = normalizePhone(
-    firstValue(fields, ["Número de Contacto", "Numero de Contacto", "Teléfono", "Telefono", "WhatsApp"])
+    firstValue(fields, ["Numero de Contacto ", "Número de Contacto", "Numero de Contacto", "Teléfono", "Telefono", "WhatsApp"])
   );
   const email = firstValue(fields, [
     "Dirección de correo electrónico",
@@ -110,15 +110,32 @@ export async function POST(request: Request) {
     "Email"
   ]).toLowerCase();
   const condominiumName = firstValue(fields, [
+    "Cual es el nombre del Residencial ?",
     "Nombre del Residencial",
     "Nombre del Condominio",
     "Residencial",
     "Condominio",
     "Torre"
   ]);
-  const location = firstValue(fields, ["Ubicación física", "Ubicacion fisica", "Ubicación", "Ubicacion", "Sector"]);
-  const units = parseUnits(firstValue(fields, ["Cantidad de apartamentos", "Cantidad de unidades", "Apartamentos", "Unidades"]));
+  const location = firstValue(fields, [
+    "¿Cuál es la ubicación física ",
+    "Ubicación física",
+    "Ubicacion fisica",
+    "Ubicación",
+    "Ubicacion",
+    "Sector"
+  ]);
+  const units = parseUnits(
+    firstValue(fields, [
+      "¿Cuántos apartamentos posee el edificio? ",
+      "Cantidad de apartamentos",
+      "Cantidad de unidades",
+      "Apartamentos",
+      "Unidades"
+    ])
+  );
   const primaryProblem = firstValue(fields, [
+    "¿Porque desean contratar una empresa de administración de condominios? ",
     "¿Por qué desean contratar una empresa de administración?",
     "Por que desean contratar una empresa de administracion",
     "Motivo de contratación",
