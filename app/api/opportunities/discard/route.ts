@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { buildDiscardUpdate } from "@/lib/discard-prospect";
 import { createClient } from "@/lib/supabase/server";
 
-const schema = z.object({ opportunityId: z.string().uuid(), reason: z.string().trim().min(3).max(500) });
-
-function addMonths(date: Date, months: number) {
-  const copy = new Date(date);
-  copy.setUTCMonth(copy.getUTCMonth() + months);
-  return copy;
-}
+const schema = z.object({
+  opportunityId: z.string().uuid(),
+  reason: z.string().trim().min(3).max(500),
+  followupMode: z.enum(["six_months", "none"]).default("six_months")
+});
 
 export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json().catch(() => null));
@@ -27,29 +26,29 @@ export async function POST(request: Request) {
   if (actor.role === "ejecutivo" && opportunity.owner_id !== authData.user.id) return NextResponse.json({ error: "Solo puedes descartar oportunidades de tu cartera." }, { status: 403 });
 
   const now = new Date();
-  const next = addMonths(now, 6);
-  const { error: updateError } = await supabase.from("opportunities").update({
-    stage: "perdida",
-    lost_reason: parsed.data.reason,
-    followup_enabled: true,
-    followup_interval_months: 6,
-    next_followup_at: next.toISOString(),
-    next_action: "Seguimiento comercial semestral",
-    next_action_at: next.toISOString(),
-    probability: 0,
-    updated_at: now.toISOString()
-  }).eq("id", opportunity.id);
+  const discard = buildDiscardUpdate(now, parsed.data.reason, parsed.data.followupMode);
+  const { error: updateError } = await supabase.from("opportunities").update(discard.update).eq("id", opportunity.id);
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+
+  if (parsed.data.followupMode === "none") {
+    const { error: taskError } = await supabase.from("tasks").update({
+      status: "completada",
+      outcome: "Cancelada automáticamente: prospecto descartado sin seguimiento."
+    }).eq("opportunity_id", opportunity.id).neq("status", "completada");
+    if (taskError) return NextResponse.json({ error: "El prospecto fue descartado sin seguimiento, pero no se pudieron cerrar sus tareas pendientes." }, { status: 500 });
+
+    return NextResponse.json({ ok: true, followupMode: "none", nextFollowupAt: null });
+  }
 
   const { error: taskError } = await supabase.from("tasks").insert({
     opportunity_id: opportunity.id,
     title: "Seguimiento semestral a prospecto descartado",
-    due_at: next.toISOString(),
+    due_at: discard.nextFollowupAt,
     priority: "media",
     status: "pendiente",
     owner_id: opportunity.owner_id
   });
   if (taskError) return NextResponse.json({ error: "El prospecto fue descartado, pero no se pudo agendar el seguimiento." }, { status: 500 });
 
-  return NextResponse.json({ ok: true, nextFollowupAt: next.toISOString() });
+  return NextResponse.json({ ok: true, followupMode: "six_months", nextFollowupAt: discard.nextFollowupAt });
 }
