@@ -39,6 +39,11 @@ function parseUnits(value: string) {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 }
 
+function parseReceivedAt(value: string) {
+  const parsed = value ? new Date(value) : new Date();
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+}
+
 async function chooseOwner(admin: any) {
   const configured = process.env.GOOGLE_FORMS_DEFAULT_OWNER_ID;
   if (configured) {
@@ -193,7 +198,7 @@ export async function POST(request: Request) {
         raw_payload: payload,
         status: "new",
         assigned_to: ownerId,
-        received_at: timestamp ? new Date(timestamp).toISOString() : new Date().toISOString()
+        received_at: parseReceivedAt(timestamp)
       })
       .select("id")
       .single();
