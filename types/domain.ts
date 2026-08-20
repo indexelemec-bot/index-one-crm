@@ -5,7 +5,7 @@ export type OpportunityStage = "prospecto_identificado" | "problema_detectado" |
 export type TaskStatus = "pendiente" | "completada" | "vencida";
 export type ProposalStatus = "borrador" | "generada" | "enviada" | "vista" | "aceptada" | "rechazada";
 export type ProposalFileFormat = "docx" | "pdf";
-export type CommissionStatus = "proyectada" | "ganada" | "pagadera" | "pagada" | "revertida";
+export type CommissionStatus = "pendiente" | "pagada";
 export type SpeechChannel = "llamada" | "reunion" | "email" | "whatsapp";
 export type SpeechOutcome = "sin_respuesta" | "interes" | "reunion" | "propuesta" | "objecion" | "cierre" | "no_interes";
 export type CommunicationChannel = "email" | "whatsapp";
@@ -27,6 +27,7 @@ export interface CommunicationThread { id: string; opportunityId: string; stakeh
 export interface CommunicationAssignmentHistory { id: string; threadId: string; previousAgentId?: string; newAgentId?: string; changedBy: string; reason?: string; changedAt: string; }
 export interface ScheduledCommunication { id: string; threadId?: string; opportunityId: string; stakeholderId: string; channel: CommunicationChannel; bodyText: string; templateKey?: string; attachmentPath?: string; attachmentName?: string; scheduledFor: string; recurrenceMonths?: number; status: ScheduledCommunicationStatus; createdBy: string; sentCommunicationId?: string; errorMessage?: string; createdAt: string; updatedAt: string; }
 export interface MarketingLead { id: string; provider: string; sourceChannel: string; leadId?: string; formId?: string; campaignId?: string; campaignName?: string; adId?: string; adName?: string; fullName?: string; phone?: string; email?: string; condominiumName?: string; sector?: string; units?: number; primaryProblem?: string; stakeholderRole?: string; boardMember?: boolean; wantsAssessment?: boolean; status: MarketingLeadStatus; accountId?: string; stakeholderId?: string; opportunityId?: string; assignedTo?: string; errorMessage?: string; receivedAt: string; convertedAt?: string; }
-export interface SalesReport { id: string; opportunityId: string; accountId: string; sellerId: string; closedBy: string; closedAt: string; initialFee: number; finalFee: number; annualValue: number; commissionRate: number; commissionBase: number; commissionAmount: number; commissionStatus: CommissionStatus; firstPaymentReceivedAt?: string; commissionPaidAt?: string; contractReference: string; notes?: string; createdAt: string; }
+export interface SalesReport { id: string; opportunityId: string; accountId: string; sellerId: string; closedBy: string; closedAt: string; initialFee: number; finalFee: number; annualValue: number; commissionRate: number; commissionBase: number; commissionAmount: number; commissionStatus: CommissionStatus; firstPaymentReceivedAt?: string; commissionPaidAt?: string; commissionPaidBy?: string; contractReference: string; notes?: string; createdAt: string; }
+export interface CommissionPaymentHistory { id: string; salesReportId: string; previousStatus: CommissionStatus; newStatus: CommissionStatus; changedBy: string; changedAt: string; notes?: string; }
 export interface AssignmentHistory { id: string; opportunityId: string; previousOwnerId?: string; newOwnerId: string; changedBy: string; changeReason: string; changedAt: string; }
 export interface SpeechUsage { id: string; speechId: string; opportunityId: string; stakeholderId?: string; stage: OpportunityStage; userId: string; channel: SpeechChannel; outcome: SpeechOutcome; notes?: string; nextAction: string; nextActionAt: string; usedAt: string; }

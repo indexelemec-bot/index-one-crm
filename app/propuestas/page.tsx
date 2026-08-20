@@ -36,7 +36,7 @@ function proposalWhatsAppBody(contactName: string, clientName: string) {
 }
 
 export default function PropuestasPage() {
-  const { proposals, opportunities, accounts, stakeholders, references, addProposal, updateOpportunity, refreshData, currentUser } = useCrm();
+  const { proposals, opportunities, accounts, stakeholders, references, addProposal, approveProposal, updateOpportunity, refreshData, currentUser } = useCrm();
   const [open, setOpen] = useState(false);
   const [opportunityId, setOpportunityId] = useState("");
   const [fee, setFee] = useState(36000);
@@ -66,6 +66,12 @@ export default function PropuestasPage() {
   const deliveryOpportunity = opportunities.find((item) => item.id === deliveryProposal?.opportunityId);
   const deliveryContacts = stakeholders.filter((item) => item.accountId === deliveryOpportunity?.accountId);
   const selectedDeliveryContact = deliveryContacts.find((item) => item.id === deliveryStakeholder);
+
+  async function approve(proposal: Proposal) {
+    const approved = await approveProposal(proposal.id);
+    setToast(approved ? `Propuesta v${proposal.version} aprobada y disponible para generar el contrato.` : "No fue posible aprobar la propuesta.");
+    window.setTimeout(() => setToast(""), 5000);
+  }
 
   const loadDeliveries = useCallback(async () => {
     const supabase = createClient();
@@ -259,7 +265,7 @@ export default function PropuestasPage() {
             <td>{proposal.changeReason || <span className="muted-copy">Primera propuesta</span>}</td>
             <td><span className="file-format"><FileText size={13}/>{proposal.fileFormat === "pdf" ? "PDF" : "Word"}</span><small>{proposal.status}</small></td>
             <td>{attempts.length === 0 ? <span className="muted-copy">Sin enviar</span> : <div className="proposal-deliveries">{attempts.map((attempt, index) => { const attemptNumber = attempts.length - index; return <span className={`proposal-delivery ${attempt.status === "failed" ? "failed" : ""}`} key={attempt.id}>{attempt.channel === "email" ? <Mail size={12}/> : <MessageCircle size={12}/>}<span><b>{attempt.channel === "email" ? "Correo" : "WhatsApp"}{attemptNumber > 1 ? ` · reenvío #${attemptNumber - 1}` : " · envío inicial"}</b><small><Clock3 size={10}/>{new Date(attempt.sentAt ?? attempt.createdAt).toLocaleString("es-DO")}</small></span></span>; })}</div>}</td>
-            <td><button className="button compact" onClick={() => openDelivery(proposal)}><Send size={14}/>{attempts.length ? "Reenviar" : "Enviar"}</button></td>
+            <td><div className="page-actions"><button className="button compact" onClick={() => openDelivery(proposal)}><Send size={14}/>{attempts.length ? "Reenviar" : "Enviar"}</button>{proposal.status !== "aceptada" && <button className="button button-primary compact" onClick={() => void approve(proposal)}><FileCheck2 size={14}/>Marcar aprobada</button>}</div></td>
           </tr>;
         })}</tbody>
       </table>
