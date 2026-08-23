@@ -55,7 +55,8 @@ export async function POST(request: Request) {
 
   if (realSendingEnabled) {
     if (!metaToken || !phoneNumberId) return NextResponse.json({ error: "WhatsApp Business todavía no está configurado para envío real." }, { status: 503 });
-    const digits = String(stakeholder.phone).replace(/\D/g, "");
+    const localDigits = String(stakeholder.phone).replace(/\D/g, "");
+    const digits = localDigits.length === 10 && /^(809|829|849)/.test(localDigits) ? `1${localDigits}` : localDigits;
     const payload = signedAttachmentUrl
       ? {
           messaging_product: "whatsapp",
