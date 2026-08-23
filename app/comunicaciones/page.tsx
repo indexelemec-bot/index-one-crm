@@ -146,7 +146,7 @@ export default function CommunicationsPage() {
     const body = draft.trim() || `Archivo adjunto: ${selectedAttachment?.name ?? "documento"}`;
     const response = await fetch("/api/communications/whatsapp/send", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ threadId: activeThread.id, body, simulate: true, attachmentPath: selectedAttachment?.path, attachmentName: selectedAttachment?.name, attachmentMime: selectedAttachment?.mime })
+      body: JSON.stringify({ threadId: activeThread.id, body, attachmentPath: selectedAttachment?.path, attachmentName: selectedAttachment?.name, attachmentMime: selectedAttachment?.mime })
     });
     const result = await response.json();
     if (!response.ok) { setError(result.error ?? "No fue posible registrar el mensaje."); setSending(false); return; }
@@ -224,13 +224,13 @@ export default function CommunicationsPage() {
       </aside>
 
       <section className={styles.chat}>
-        {!activeThread ? <div className={styles.chatPlaceholder}><MessageCircle size={48}/><h2>Centro WhatsApp</h2><p>Selecciona una conversación o crea una nueva para comenzar.</p><span>Modo de pruebas · No se enviarán mensajes reales todavía.</span></div> : <>
+        {!activeThread ? <div className={styles.chatPlaceholder}><MessageCircle size={48}/><h2>Centro WhatsApp</h2><p>Selecciona una conversación o crea una nueva para comenzar.</p><span>Canal conectado a WhatsApp Business.</span></div> : <>
           <header className={styles.chatHeader}>
             <span className={styles.avatar}>{(activeStakeholder?.fullName ?? "C").split(" ").slice(0, 2).map((part) => part[0]).join("")}</span>
             <div><b>{activeStakeholder?.fullName}</b><small>{activeAccount?.name} · {activeStakeholder?.phone}</small></div>
             <label className={styles.agentSelect}><UserRoundCog size={15}/><span><small>Atiende</small><select value={assignedAgent?.id ?? ""} onChange={(event) => void reassignConversation(event.target.value)}>{activeUsers.map((user) => <option value={user.id} key={user.id}>{user.fullName}</option>)}</select></span></label>
           </header>
-          <div className={styles.notice}>Modo simulación activo. Los mensajes se guardan en INDEX ONE, pero todavía no salen al WhatsApp real.</div>
+          <div className={styles.notice}>Envío oficial activo. Las respuestas se envían al WhatsApp del contacto.</div>
           <div className={styles.messages}>
             {activeMessages.length === 0 && <div className={styles.firstMessage}><CircleUserRound size={22}/><div><b>Inicio de conversación</b><p>El primer mensaje del agente incluirá su presentación visible para que el cliente sepa quién le está atendiendo.</p></div></div>}
             {activeMessages.map((message) => <div key={message.id} className={`${styles.bubbleRow} ${message.direction === "outbound" ? styles.outbound : styles.inbound}`}><div className={styles.bubble}>{message.agentNameSnapshot && message.direction === "outbound" && <small className={styles.agentName}>{message.agentNameSnapshot}</small>}<p>{message.bodyText}</p>{message.mediaName && <a href={`/api/communications/attachments/download?communicationId=${message.id}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, fontWeight: 700 }}><Paperclip size={14}/>{message.mediaName}</a>}<span>{new Date(message.sentAt ?? message.createdAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}{message.direction === "outbound" && <CheckCheck size={14}/>}</span></div></div>)}
