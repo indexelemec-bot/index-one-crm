@@ -64,5 +64,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|api/proposals/generate|api/webhooks/resend|api/marketing/google-forms/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|api/proposals/generate|api/webhooks/resend|api/marketing/google-forms/webhook|api/communications/whatsapp/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
 };
