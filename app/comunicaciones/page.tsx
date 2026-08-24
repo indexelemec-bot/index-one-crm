@@ -30,6 +30,7 @@ export default function CommunicationsPage() {
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [error, setError] = useState("");
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "live" | "fallback">("connecting");
   const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedAttachment, setSelectedAttachment] = useState<UploadedAttachment | null>(null);
@@ -59,6 +60,36 @@ export default function CommunicationsPage() {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) return;
+    let active = true;
+
+    const channel = supabase
+      .channel("communications-live")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "communications" }, (payload) => {
+        const communication = mapCommunication(payload.new);
+        setMessages((items) => [...items.filter((item) => item.id !== communication.id), communication]
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "communication_threads" }, (payload) => {
+        if (!payload.new || !("id" in payload.new)) return;
+        const thread = mapCommunicationThread(payload.new);
+        setThreads((items) => [thread, ...items.filter((item) => item.id !== thread.id)]
+          .sort((a, b) => new Date(b.lastMessageAt ?? b.updatedAt).getTime() - new Date(a.lastMessageAt ?? a.updatedAt).getTime()));
+      })
+      .subscribe((status) => {
+        if (active) setRealtimeStatus(status === "SUBSCRIBED" ? "live" : status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED" ? "fallback" : "connecting");
+      });
+
+    const fallbackRefresh = window.setInterval(() => { void load(); }, 15_000);
+    return () => {
+      active = false;
+      window.clearInterval(fallbackRefresh);
+      void supabase.removeChannel(channel);
+    };
+  }, [load]);
 
   const derivedThreads = useMemo(() => {
     if (threads.length) return threads;
@@ -150,7 +181,9 @@ export default function CommunicationsPage() {
     });
     const result = await response.json();
     if (!response.ok) { setError(result.error ?? "No fue posible registrar el mensaje."); setSending(false); return; }
-    setMessages((items) => [...items, mapCommunication(result.communication)]);
+    const communication = mapCommunication(result.communication);
+    setMessages((items) => [...items.filter((item) => item.id !== communication.id), communication]
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
     setDraft(""); setSelectedAttachment(null); setSending(false);
     if (attachmentInputRef.current) attachmentInputRef.current.value = "";
     await load();
@@ -230,7 +263,7 @@ export default function CommunicationsPage() {
             <div><b>{activeStakeholder?.fullName}</b><small>{activeAccount?.name} · {activeStakeholder?.phone}</small></div>
             <label className={styles.agentSelect}><UserRoundCog size={15}/><span><small>Atiende</small><select value={assignedAgent?.id ?? ""} onChange={(event) => void reassignConversation(event.target.value)}>{activeUsers.map((user) => <option value={user.id} key={user.id}>{user.fullName}</option>)}</select></span></label>
           </header>
-          <div className={styles.notice}>Envío oficial activo. Las respuestas se envían al WhatsApp del contacto.</div>
+          <div className={styles.notice}>Envío oficial activo · {realtimeStatus === "live" ? "Respuestas en tiempo real." : realtimeStatus === "fallback" ? "Actualización automática cada 15 segundos." : "Conectando actualizaciones en vivo…"}</div>
           <div className={styles.messages}>
             {activeMessages.length === 0 && <div className={styles.firstMessage}><CircleUserRound size={22}/><div><b>Inicio de conversación</b><p>El primer mensaje del agente incluirá su presentación visible para que el cliente sepa quién le está atendiendo.</p></div></div>}
             {activeMessages.map((message) => <div key={message.id} className={`${styles.bubbleRow} ${message.direction === "outbound" ? styles.outbound : styles.inbound}`}><div className={styles.bubble}>{message.agentNameSnapshot && message.direction === "outbound" && <small className={styles.agentName}>{message.agentNameSnapshot}</small>}<p>{message.bodyText}</p>{message.mediaName && <a href={`/api/communications/attachments/download?communicationId=${message.id}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, fontWeight: 700 }}><Paperclip size={14}/>{message.mediaName}</a>}<span>{new Date(message.sentAt ?? message.createdAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}{message.direction === "outbound" && <CheckCheck size={14}/>}</span></div></div>)}
