@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { amountToSpanishWords } from "@/lib/contracts/spanish-amount";
 
 export type ContractValues = {
   opportunityId: string;
@@ -14,7 +15,6 @@ export type ContractValues = {
   representativeGenderEnding: "o" | "a";
   assemblyDate: string;
   monthlyFee: number;
-  monthlyFeeWords: string;
   signatureDate: string;
   changeReason: string;
   negotiatedTerms?: string;
@@ -36,7 +36,7 @@ function yearTailWords(year: number) {
 export async function buildContract(values: ContractValues) {
   const assembly = new Date(`${values.assemblyDate}T12:00:00Z`);
   const signature = new Date(`${values.signatureDate}T12:00:00Z`);
-  const replacements = [values.clientLegalName, values.clientRnc, values.clientAddress, values.city, values.sector, values.representativeName, values.representativeGenderEnding, values.representativeId, values.clientLegalName, values.clientLegalName, monthNames[assembly.getUTCMonth()], yearTailWords(assembly.getUTCFullYear()), String(assembly.getUTCFullYear()).slice(-1), values.monthlyFeeWords.toUpperCase(), new Intl.NumberFormat("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(values.monthlyFee), String(signature.getUTCDate()).padStart(2, "0"), " ", `${monthNames[signature.getUTCMonth()]} `, "del ", "año dos mil ", yearTailWords(signature.getUTCFullYear()), "(", "20", String(signature.getUTCFullYear()).slice(-2), "). _", values.representativeName, values.representativeGenderEnding === "a" ? "a" : "e", values.clientLegalName];
+  const replacements = [values.clientLegalName, values.clientRnc, values.clientAddress, values.city, values.sector, values.representativeName, values.representativeGenderEnding, values.representativeId, values.clientLegalName, values.clientLegalName, monthNames[assembly.getUTCMonth()], yearTailWords(assembly.getUTCFullYear()), String(assembly.getUTCFullYear()).slice(-1), amountToSpanishWords(values.monthlyFee), new Intl.NumberFormat("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(values.monthlyFee), String(signature.getUTCDate()).padStart(2, "0"), " ", `${monthNames[signature.getUTCMonth()]} `, "del ", "año dos mil ", yearTailWords(signature.getUTCFullYear()), "(", "20", String(signature.getUTCFullYear()).slice(-2), "). _", values.representativeName, values.representativeGenderEnding === "a" ? "a" : "e", values.clientLegalName];
   const contractMasterBase64 = (await readFile(path.join(process.cwd(), "private/templates/contract-master.b64"), "utf8")).trim();
   const zip = await JSZip.loadAsync(Buffer.from(contractMasterBase64, "base64"));
   const documentFile = zip.file("word/document.xml");
