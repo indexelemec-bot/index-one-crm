@@ -10,3 +10,6 @@
 - Respuesta HTTP 403 para APIs cuando el perfil está desactivado.
 - Pantalla `/access-disabled` con cierre de sesión.
 - Protección contra cambio de rol o desactivación de la propia cuenta del superadministrador desde la interfaz.
+- Cambio manual de contraseña visible y ejecutable únicamente por `superadmin`.
+- Validación de usuario objetivo, longitud y confirmación de contraseña en cliente y servidor.
+- Auditoría del cambio sin almacenar la contraseña.

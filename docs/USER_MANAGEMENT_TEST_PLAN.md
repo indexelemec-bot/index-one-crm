@@ -11,3 +11,7 @@
 9. Reactivar el usuario desde la cuenta superadministradora.
 10. Verificar que vuelve a poder acceder al CRM.
 11. Confirmar que el superadministrador no puede desactivar ni cambiar su propio rol desde la interfaz.
+12. Como superadministrador, abrir **Contraseña** para un usuario, confirmar que se rechazan claves de menos de 10 caracteres y confirmaciones distintas.
+13. Cambiar la contraseña y confirmar que el usuario puede iniciar sesión con la nueva clave.
+14. Confirmar que `admin_password_change_audit` contiene actor, objetivo, estado y fecha, pero ningún dato de contraseña.
+15. Como un rol distinto de `superadmin`, confirmar que la acción **Contraseña** no aparece y que una llamada directa a `/api/admin/users/password` responde HTTP 403.

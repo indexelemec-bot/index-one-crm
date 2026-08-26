@@ -1,1 +1,3 @@
-Las operaciones administrativas de estado y rol se validan en servidor comprobando sesión activa y rol `superadmin`. El middleware consulta `profiles.active` y bloquea navegación/API para perfiles desactivados.
+Las operaciones administrativas de estado, rol y contraseña se validan en servidor comprobando sesión activa y rol `superadmin`. El middleware consulta `profiles.active` y bloquea navegación/API para perfiles desactivados.
+
+El cambio manual de contraseña usa `auth.admin.updateUserById` exclusivamente en una ruta Node.js del servidor. `SUPABASE_SERVICE_ROLE_KEY` no se expone al cliente. Antes de ejecutar el cambio se crea una entrada en `admin_password_change_audit` con actor, usuario objetivo, estado y fecha; nunca se guarda la contraseña ni información derivada de ella. Solo un superadministrador puede consultar este registro mediante RLS.

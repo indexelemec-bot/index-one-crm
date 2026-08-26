@@ -6,7 +6,7 @@
 2. Pulsar **Invitar usuario**.
 3. Registrar nombre, correo corporativo y rol.
 4. El usuario recibe una invitación de Supabase para establecer su contraseña.
-5. Desde la misma pantalla, el superadministrador puede cambiar nombre, cambiar rol y activar/desactivar acceso.
+5. Desde la misma pantalla, el superadministrador puede cambiar nombre, cambiar rol, establecer una nueva contraseña y activar/desactivar acceso.
 
 ## Reglas de seguridad
 
@@ -15,6 +15,8 @@
 - Un perfil con `active = false` es interceptado por middleware y enviado a `/access-disabled`.
 - Las llamadas API de un perfil desactivado reciben HTTP 403.
 - La autorización de datos continúa reforzada por RLS en Supabase.
+- La contraseña manual exige entre 10 y 128 caracteres y confirmación idéntica.
+- El cambio se ejecuta exclusivamente en el servidor con `auth.admin.updateUserById` y se audita sin guardar la contraseña.
 
 ## Roles
 
