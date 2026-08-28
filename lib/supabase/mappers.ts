@@ -1,4 +1,4 @@
-import type { Account, AssignmentHistory, CommercialReference, Communication, CommunicationAssignmentHistory, CommunicationThread, MarketingLead, Opportunity, Proposal, SalesReport, ScheduledCommunication, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
+import type { Account, AssignmentHistory, ClientDocument, CommercialReference, Communication, CommunicationAssignmentHistory, CommunicationThread, MarketingLead, Opportunity, Proposal, SalesReport, ScheduledCommunication, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
 
 export const mapProfile = (row: Record<string, unknown>): UserProfile => ({
   id: String(row.id), fullName: String(row.full_name), email: String(row.email ?? ""),
@@ -73,6 +73,7 @@ export const mapSpeechUsage = (row: Record<string, unknown>): SpeechUsage => ({
 
 export const mapCommunication = (row: Record<string, unknown>): Communication => ({
   id: String(row.id), opportunityId: String(row.opportunity_id), proposalId: row.proposal_id ? String(row.proposal_id) : undefined,
+  clientDocumentId: row.client_document_id ? String(row.client_document_id) : undefined,
   stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, threadId: row.thread_id ? String(row.thread_id) : undefined,
   channel: row.channel as Communication["channel"], direction: row.direction as Communication["direction"],
   fromAddress: String(row.from_address ?? ""), toAddress: String(row.to_address ?? ""), subject: row.subject ? String(row.subject) : undefined,
@@ -94,6 +95,14 @@ export const mapCommunication = (row: Record<string, unknown>): Communication =>
   isInternal: Boolean(row.is_internal), sentAt: row.sent_at ? String(row.sent_at) : undefined,
   deliveredAt: row.delivered_at ? String(row.delivered_at) : undefined, openedAt: row.opened_at ? String(row.opened_at) : undefined,
   createdAt: String(row.created_at)
+});
+
+export const mapClientDocument = (row: Record<string, unknown>): ClientDocument => ({
+  id: String(row.id), opportunityId: String(row.opportunity_id),
+  stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined,
+  templateKey: row.template_key as ClientDocument["templateKey"], title: String(row.title), fileName: String(row.file_name),
+  dataSnapshot: (row.data_snapshot as Record<string, unknown>) ?? {}, status: row.status as ClientDocument["status"],
+  generatedBy: String(row.generated_by), generatedAt: String(row.generated_at), sentAt: row.sent_at ? String(row.sent_at) : undefined
 });
 
 export const mapCommunicationThread = (row: Record<string, unknown>): CommunicationThread => ({

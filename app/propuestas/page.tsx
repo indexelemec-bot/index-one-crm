@@ -3,6 +3,7 @@
 import { Clock3, Download, FileCheck2, FileText, History, Mail, MessageCircle, Plus, Send, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCrm } from "@/components/crm-provider";
+import { ClientDocumentsPanel } from "@/components/client-documents-panel";
 import { Modal, PageHeader } from "@/components/ui";
 import { formatCurrency } from "@/lib/constants";
 import { selectComparableReferences } from "@/lib/reference-matching";
@@ -242,6 +243,8 @@ export default function PropuestasPage() {
     <PageHeader eyebrow="Plantilla corporativa bloqueada" title="Propuestas comerciales" description="Genera Word o PDF y conserva cada versión para seguir la negociación y sus variaciones de precio.">
       <button className="button button-primary" onClick={start}><Plus size={18}/> Generar propuesta</button>
     </PageHeader>
+
+    <ClientDocumentsPanel/>
 
     <div className="card table-wrap">
       <table className="table proposal-history-table">
