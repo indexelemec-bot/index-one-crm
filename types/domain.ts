@@ -15,6 +15,10 @@ export type CommunicationThreadStatus = "open" | "pending" | "closed" | "archive
 export type ScheduledCommunicationStatus = "scheduled" | "processing" | "sent" | "cancelled" | "failed";
 export type TranscriptionStatus = "not_requested" | "pending" | "processing" | "completed" | "failed";
 export type MarketingLeadStatus = "new" | "matched" | "converted" | "ignored" | "error";
+export type ArmAgentKind = "interno" | "externo";
+export type ArmAgentStatus = "borrador" | "piloto" | "activo" | "pausado" | "retirado";
+export type ArmAutonomyLevel = "asesor" | "supervisado" | "acotado" | "autonomo";
+export type ArmDecisionStatus = "recomendacion" | "pendiente_aprobacion" | "aprobada" | "rechazada" | "ejecutada" | "fallida";
 
 export interface UserProfile { id: string; fullName: string; email: string; role: UserRole; active: boolean; deletedAt?: string; reassignedTo?: string; }
 export interface Account { id: string; name: string; accountType: AccountType; address: string; sector: string; city: string; units: number; towers: number; profile: string; ownerId: string; source: string; createdAt: string; }
@@ -32,3 +36,6 @@ export interface MarketingLead { id: string; provider: string; sourceChannel: st
 export interface SalesReport { id: string; opportunityId: string; accountId: string; sellerId: string; closedBy: string; closedAt: string; initialFee: number; finalFee: number; annualValue: number; commissionRate: number; commissionBase: number; commissionAmount: number; commissionStatus: CommissionStatus; firstPaymentReceivedAt?: string; commissionPaidAt?: string; contractReference: string; notes?: string; createdAt: string; }
 export interface AssignmentHistory { id: string; opportunityId: string; previousOwnerId?: string; newOwnerId: string; changedBy: string; changeReason: string; changedAt: string; }
 export interface SpeechUsage { id: string; speechId: string; opportunityId: string; stakeholderId?: string; stage: OpportunityStage; userId: string; channel: SpeechChannel; outcome: SpeechOutcome; notes?: string; nextAction: string; nextActionAt: string; usedAt: string; }
+export interface ArmAgent { id: string; name: string; slug: string; kind: ArmAgentKind; roleKey: string; description: string; status: ArmAgentStatus; autonomyLevel: ArmAutonomyLevel; riskLevel: "bajo" | "medio" | "alto"; requiresHumanApproval: boolean; capabilities: string[]; allowedChannels: string[]; systemInstructions?: string; ownerId?: string; createdAt: string; updatedAt: string; }
+export interface ArmAgentAssignment { id: string; agentId: string; opportunityId: string; relationshipRole: "principal" | "apoyo" | "revision" | "escalamiento"; status: "activa" | "pausada" | "completada"; notes?: string; assignedBy: string; assignedAt: string; updatedAt: string; }
+export interface ArmInteraction { id: string; agentId: string; opportunityId?: string; stakeholderId?: string; initiatedBy: string; interactionType: string; inputSummary: string; outputSummary?: string; decisionStatus: ArmDecisionStatus; confidenceScore?: number; requiresApproval: boolean; approvedBy?: string; approvedAt?: string; outcome?: string; createdAt: string; updatedAt: string; }
