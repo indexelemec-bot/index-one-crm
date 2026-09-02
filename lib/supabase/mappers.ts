@@ -1,4 +1,4 @@
-import type { Account, AssignmentHistory, ClientDocument, CommercialReference, Communication, CommunicationAssignmentHistory, CommunicationThread, MarketingLead, Opportunity, Proposal, SalesReport, ScheduledCommunication, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
+import type { Account, ArmAgent, ArmAgentAssignment, ArmInteraction, AssignmentHistory, ClientDocument, CommercialReference, Communication, CommunicationAssignmentHistory, CommunicationThread, MarketingLead, Opportunity, Proposal, SalesReport, ScheduledCommunication, SpeechUsage, Stakeholder, Task, UserProfile } from "@/types/domain";
 
 export const mapProfile = (row: Record<string, unknown>): UserProfile => ({
   id: String(row.id), fullName: String(row.full_name), email: String(row.email ?? ""),
@@ -151,4 +151,29 @@ export const mapMarketingLead = (row: Record<string, unknown>): MarketingLead =>
   stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, opportunityId: row.opportunity_id ? String(row.opportunity_id) : undefined,
   assignedTo: row.assigned_to ? String(row.assigned_to) : undefined, errorMessage: row.error_message ? String(row.error_message) : undefined,
   receivedAt: String(row.received_at), convertedAt: row.converted_at ? String(row.converted_at) : undefined
+});
+
+export const mapArmAgent = (row: Record<string, unknown>): ArmAgent => ({
+  id: String(row.id), name: String(row.name), slug: String(row.slug), kind: row.kind as ArmAgent["kind"],
+  roleKey: String(row.role_key), description: String(row.description), status: row.status as ArmAgent["status"],
+  autonomyLevel: row.autonomy_level as ArmAgent["autonomyLevel"], riskLevel: row.risk_level as ArmAgent["riskLevel"],
+  requiresHumanApproval: Boolean(row.requires_human_approval), capabilities: (row.capabilities as string[]) ?? [],
+  allowedChannels: (row.allowed_channels as string[]) ?? [], systemInstructions: row.system_instructions ? String(row.system_instructions) : undefined,
+  ownerId: row.owner_id ? String(row.owner_id) : undefined, createdAt: String(row.created_at), updatedAt: String(row.updated_at)
+});
+
+export const mapArmAssignment = (row: Record<string, unknown>): ArmAgentAssignment => ({
+  id: String(row.id), agentId: String(row.agent_id), opportunityId: String(row.opportunity_id),
+  relationshipRole: row.relationship_role as ArmAgentAssignment["relationshipRole"], status: row.status as ArmAgentAssignment["status"],
+  notes: row.notes ? String(row.notes) : undefined, assignedBy: String(row.assigned_by), assignedAt: String(row.assigned_at), updatedAt: String(row.updated_at)
+});
+
+export const mapArmInteraction = (row: Record<string, unknown>): ArmInteraction => ({
+  id: String(row.id), agentId: String(row.agent_id), opportunityId: row.opportunity_id ? String(row.opportunity_id) : undefined,
+  stakeholderId: row.stakeholder_id ? String(row.stakeholder_id) : undefined, initiatedBy: String(row.initiated_by),
+  interactionType: String(row.interaction_type), inputSummary: String(row.input_summary), outputSummary: row.output_summary ? String(row.output_summary) : undefined,
+  decisionStatus: row.decision_status as ArmInteraction["decisionStatus"], confidenceScore: row.confidence_score === null || row.confidence_score === undefined ? undefined : Number(row.confidence_score),
+  requiresApproval: Boolean(row.requires_approval), approvedBy: row.approved_by ? String(row.approved_by) : undefined,
+  approvedAt: row.approved_at ? String(row.approved_at) : undefined, outcome: row.outcome ? String(row.outcome) : undefined,
+  createdAt: String(row.created_at), updatedAt: String(row.updated_at)
 });

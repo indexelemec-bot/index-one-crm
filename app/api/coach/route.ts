@@ -20,12 +20,23 @@ export async function POST(request: Request) {
     supabase.from("tasks").select("title,due_at,status,outcome").eq("opportunity_id", opportunity.id).order("due_at", { ascending: false }).limit(12)
   ]);
   try {
+    const { data: armAgent } = await supabase.from("arm_agents").select("id,name,system_instructions").eq("slug", "coach-comercial").in("status", ["activo", "piloto"]).maybeSingle();
     const { output } = await generateText({
       model: gateway("openai/gpt-5-mini"),
       output: Output.object({ schema: responseSchema }),
-      instructions: "Eres coach de ventas B2B consultivas para INDEX CONDO, empresa de administración de condominios en República Dominicana. Responde en español claro. Usa solo la evidencia aportada, distingue hechos de hipótesis y propone acciones éticas, concretas y medibles. Nunca inventes urgencia, ahorros, testimonios ni autoridad de decisión. No recomiendes manipulación psicológica, hostigamiento ni descuentos sin contraprestación.",
+      instructions: `${armAgent?.system_instructions ?? ""}\nEres coach de ventas B2B consultivas para INDEX CONDO, empresa de administración de condominios en República Dominicana. Responde en español claro. Usa solo la evidencia aportada, distingue hechos de hipótesis y propone acciones éticas, concretas y medibles. Nunca inventes urgencia, ahorros, testimonios ni autoridad de decisión. No recomiendes manipulación psicológica, hostigamiento ni descuentos sin contraprestación.`,
       prompt: `Consulta del vendedor: ${parsed.data.question}\n\nContexto CRM verificable:\n${JSON.stringify({ opportunity, stakeholders, proposals, tasks })}`
     });
+    if (armAgent?.id && output) {
+      const { error: logError } = await supabase.from("arm_interactions").insert({
+        agent_id: armAgent.id, opportunity_id: opportunity.id, initiated_by: authData.user.id,
+        interaction_type: "consulta_coach", input_summary: parsed.data.question,
+        output_summary: `${output.summary} Próximo paso: ${output.nextAction}`,
+        decision_status: "recomendacion", requires_approval: false,
+        metadata: { recommendations: output.recommendations, questions: output.questions, risk: output.risk }
+      });
+      if (logError) console.error("arm-interaction-log", logError);
+    }
     return NextResponse.json(output);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? `El asistente no está disponible: ${error.message}` : "El asistente no está disponible." }, { status: 503 });
