@@ -262,7 +262,7 @@ export default function PropuestasPage() {
             <td>{proposal.changeReason || <span className="muted-copy">Primera propuesta</span>}</td>
             <td><span className="file-format"><FileText size={13}/>{proposal.fileFormat === "pdf" ? "PDF" : "Word"}</span><small>{proposal.status}</small></td>
             <td>{attempts.length === 0 ? <span className="muted-copy">Sin enviar</span> : <div className="proposal-deliveries">{attempts.map((attempt, index) => { const attemptNumber = attempts.length - index; return <span className={`proposal-delivery ${attempt.status === "failed" ? "failed" : ""}`} key={attempt.id}>{attempt.channel === "email" ? <Mail size={12}/> : <MessageCircle size={12}/>}<span><b>{attempt.channel === "email" ? "Correo" : "WhatsApp"}{attemptNumber > 1 ? ` · reenvío #${attemptNumber - 1}` : " · envío inicial"}</b><small><Clock3 size={10}/>{new Date(attempt.sentAt ?? attempt.createdAt).toLocaleString("es-DO")}</small></span></span>; })}</div>}</td>
-            <td><button className="button compact" onClick={() => openDelivery(proposal)}><Send size={14}/>{attempts.length ? "Reenviar" : "Enviar"}</button></td>
+            <td><div className="proposal-actions"><a className="button compact" href={`/api/proposals/download?id=${proposal.id}`}><Download size={14}/>Descargar</a><button className="button compact" onClick={() => openDelivery(proposal)}><Send size={14}/>{attempts.length ? "Reenviar" : "Enviar"}</button></div></td>
           </tr>;
         })}</tbody>
       </table>
