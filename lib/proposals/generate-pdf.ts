@@ -1,12 +1,15 @@
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
-import type { CommercialReference } from "@/types/domain";
+import type { CommercialReference, ProjectType, ResidentialSubtype } from "@/types/domain";
 
 export interface ProposalPdfData {
   clientName: string;
   issueDate: string;
   monthlyFee: number;
   references: CommercialReference[];
+  projectType?: ProjectType;
+  residentialSubtype?: ResidentialSubtype;
+  customUnitType?: string;
 }
 
 const navy = rgb(25 / 255, 46 / 255, 103 / 255);
@@ -37,6 +40,7 @@ function drawRight(page: PDFPage, text: string, right: number, y: number, font: 
   page.drawText(text, { x: right - font.widthOfTextAtSize(text, size), y, size, font, color });
 }
 
+function unitTerm(projectType:ProjectType="residencial",subtype?:ResidentialSubtype,custom?:string){return projectType==="comercial"?"Locales":subtype==="casa"?"Casas":subtype==="otros"?(custom||"Unidades"):"Apartamentos"}
 function drawReference(page: PDFPage, reference: CommercialReference, y: number, regular: PDFFont, bold: PDFFont) {
   const nameSize = fittedSize(bold, reference.clientName, 10, 165, 7.5);
   const locationSize = fittedSize(regular, reference.location, 9.5, 190, 7);
@@ -62,6 +66,8 @@ export async function generateProposalPdf(
   const longDate = spanishDate(data.issueDate);
 
   drawCentered(pages[0], data.clientName, 421.2, bold, 15, 470, navy);
+  pages[0].drawRectangle({x:45,y:445,width:505,height:52,color:rgb(1,1,1)});
+  drawCentered(pages[0], data.projectType==="comercial"?"PROPUESTA DE ADMINISTRACIÓN COMERCIAL":`PROPUESTA DE ADMINISTRACIÓN RESIDENCIAL · ${unitTerm(data.projectType,data.residentialSubtype,data.customUnitType).toUpperCase()}`, 469, bold, 14, 480, navy);
   drawCentered(pages[0], longDate, 378.7, regular, 10, 230, gray);
   drawRight(pages[1], `Santo Domingo, ${longDate}`, 557.02, 694.85, regular, 10, gray);
   pages[1].drawText(data.clientName, {
@@ -75,6 +81,8 @@ export async function generateProposalPdf(
   drawReference(pages[3], data.references[0], 332.25, regular, bold);
   drawReference(pages[3], data.references[1], 307.55, regular, bold);
   drawReference(pages[3], data.references[2], 282.85, regular, bold);
+  pages[3].drawRectangle({x:470,y:350,width:75,height:15,color:rgb(1,1,1)});
+  pages[3].drawText(unitTerm(data.projectType,data.residentialSubtype,data.customUnitType),{x:474,y:354,size:8,font:bold,color:navy});
   drawCentered(pages[4], `RD$ ${fee(data.monthlyFee)} / mes`, 408, bold, 18, 330, orange);
 
   pdf.setTitle(`Propuesta INDEX ONE - ${data.clientName}`);

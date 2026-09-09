@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isEnabledCrmProfile } from "@/lib/auth/access";
 
 export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -29,13 +30,14 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user) {
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
-      .select("active")
+      .select("active,deleted_at")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (profile && profile.active === false) {
+    const profileEnabled = !profileError && isEnabledCrmProfile(profile);
+    if (!profileEnabled) {
       if (pathname.startsWith("/api/")) {
         return NextResponse.json({ error: "Tu acceso a INDEX ONE CRM está desactivado." }, { status: 403 });
       }
@@ -47,13 +49,13 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    if (profile?.active !== false && pathname === "/login") {
+    if (profileEnabled && pathname === "/login") {
       const target = request.nextUrl.clone();
       target.pathname = "/dashboard";
       return NextResponse.redirect(target);
     }
 
-    if (profile?.active !== false && pathname === "/access-disabled") {
+    if (profileEnabled && pathname === "/access-disabled") {
       const target = request.nextUrl.clone();
       target.pathname = "/dashboard";
       return NextResponse.redirect(target);
@@ -64,5 +66,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|api/proposals/generate|api/webhooks/resend|api/marketing/google-forms/webhook|api/communications/whatsapp/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|api/proposals/generate|api/webhooks/resend|api/marketing/google-forms/webhook|api/marketing/meta/webhook|api/communications/whatsapp/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"]
 };

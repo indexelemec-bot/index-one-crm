@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   accounts as demoAccounts, opportunities as demoOpportunities, proposals as demoProposals,
   references as demoReferences, salesReports as demoSalesReports, stakeholders as demoStakeholders, tasks as demoTasks, users as demoUsers
@@ -15,16 +15,17 @@ type CloseSaleInput = { opportunityId: string; finalFee: number; closedAt: strin
 type InviteUserInput = Pick<UserProfile, "fullName" | "email" | "role">;
 type Store = {
   accounts: Account[]; opportunities: Opportunity[]; stakeholders: Stakeholder[]; tasks: Task[]; proposals: Proposal[];
-  references: CommercialReference[]; users: UserProfile[]; salesReports: SalesReport[]; assignmentHistory: AssignmentHistory[]; speechUsages: SpeechUsage[]; currentUser: UserProfile; loading: boolean; syncError: string;
+  references: CommercialReference[]; users: UserProfile[]; salesReports: SalesReport[]; assignmentHistory: AssignmentHistory[]; speechUsages: SpeechUsage[]; currentUser: UserProfile; loading: boolean; syncError: string; dataVersion: number;
   setCurrentUser: (user: UserProfile) => void; addProspect: (data: NewProspect) => void;
-  updateOpportunity: (id: string, patch: Partial<Opportunity>) => void; addTask: (task: Task) => Promise<boolean>;
+  updateAccount: (id: string, patch: Partial<Account>) => Promise<{ ok: boolean; error?: string }>;
+  updateOpportunity: (id: string, patch: Partial<Opportunity>) => Promise<{ ok: boolean; error?: string }>; addTask: (task: Task) => Promise<boolean>;
   completeTask: (id: string, outcome: string, nextTask?: Task) => void; addProposal: (proposal: Proposal) => void;
   toggleUser: (id: string) => void; resetDemo: () => void; inviteUser: (input: InviteUserInput) => Promise<{ ok: boolean; error?: string }>;
-  assignOpportunity: (id: string, newOwnerId: string, reason: string) => void; closeSale: (input: CloseSaleInput) => void;
+  assignOpportunity: (id: string, newOwnerId: string, reason: string, note?: string) => Promise<{ ok: boolean; error?: string }>; closeSale: (input: CloseSaleInput) => void;
   confirmFirstPayment: (reportId: string) => void; markCommissionPaid: (reportId: string) => void;
   markSpeechUsed: (usage: SpeechUsage) => Promise<boolean>;
   updateUserProfile: (id: string, fullName: string) => Promise<{ ok: boolean; error?: string }>;
-  refreshData: () => Promise<void>;
+  refreshData: () => Promise<boolean>;
 };
 
 const CrmContext = createContext<Store | null>(null);
@@ -57,12 +58,17 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState(demoUsers[0]);
   const [loading, setLoading] = useState(remote);
   const [syncError, setSyncError] = useState("");
+  const [dataVersion, setDataVersion] = useState(0);
   const [hydrated, setHydrated] = useState(false);
+  const loadSequence = useRef(0);
+  const hasLoadedRemote = useRef(false);
 
   const loadRemote = useCallback(async () => {
     const supabase = createClient();
-    if (!supabase) return;
-    setLoading(true); setSyncError("");
+    if (!supabase) return false;
+    const sequence = ++loadSequence.current;
+    if (!hasLoadedRemote.current) setLoading(true);
+    setSyncError("");
     try {
       const { data: authData, error: authError } = await supabase.auth.getUser();
       if (authError || !authData.user) throw authError ?? new Error("Sesión no disponible");
@@ -73,29 +79,36 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         supabase.from("opportunities").select("*").order("updated_at", { ascending: false }),
         supabase.from("tasks").select("*").order("due_at"),
         supabase.from("proposals").select("*").order("generated_at", { ascending: false }),
-        supabase.from("references_catalog").select("*").eq("approved", true).order("client_name"),
+        supabase.from("references_catalog").select("*").order("priority", { ascending: false }).order("incorporated_at", { ascending: false }),
         supabase.from("sales_reports").select("*").order("closed_at", { ascending: false }),
         supabase.from("opportunity_assignment_history").select("*").order("changed_at", { ascending: false }),
         supabase.from("opportunity_speech_usage").select("*").order("used_at", { ascending: false })
       ]);
-      const failure = [profileResult, accountResult, stakeholderResult, opportunityResult, taskResult, proposalResult, referenceResult, reportResult, assignmentResult, speechUsageResult].find((result) => result.error)?.error;
-      if (failure) throw failure;
+      if (profileResult.error) throw profileResult.error;
       const mappedProfiles = (profileResult.data ?? []).map((row) => mapProfile(row));
       const authenticatedProfile = mappedProfiles.find((profile) => profile.id === authData.user.id);
       if (!authenticatedProfile) throw new Error("El usuario autenticado no tiene perfil CRM");
+      if (sequence !== loadSequence.current) return false;
       setProfiles(mappedProfiles); setCurrentUser(authenticatedProfile);
-      setAccounts((accountResult.data ?? []).map((row) => mapAccount(row)));
-      setStakeholders((stakeholderResult.data ?? []).map((row) => mapStakeholder(row)));
-      setOpportunities((opportunityResult.data ?? []).map((row) => mapOpportunity(row)));
-      setTasks((taskResult.data ?? []).map((row) => mapTask(row)));
-      setProposals((proposalResult.data ?? []).map((row) => mapProposal(row)));
-      setReferences((referenceResult.data ?? []).map((row) => mapReference(row)));
-      setSalesReports((reportResult.data ?? []).map((row) => mapSalesReport(row)));
-      setAssignmentHistory((assignmentResult.data ?? []).map((row) => mapAssignmentHistory(row)));
-      setSpeechUsages((speechUsageResult.data ?? []).map((row) => mapSpeechUsage(row)));
+      if (!accountResult.error) setAccounts((accountResult.data ?? []).map((row) => mapAccount(row)));
+      if (!stakeholderResult.error) setStakeholders((stakeholderResult.data ?? []).map((row) => mapStakeholder(row)));
+      if (!opportunityResult.error) setOpportunities((opportunityResult.data ?? []).map((row) => mapOpportunity(row)));
+      if (!taskResult.error) setTasks((taskResult.data ?? []).map((row) => mapTask(row)));
+      if (!proposalResult.error) setProposals((proposalResult.data ?? []).map((row) => mapProposal(row)));
+      if (!referenceResult.error) setReferences((referenceResult.data ?? []).map((row) => mapReference(row)));
+      if (!reportResult.error) setSalesReports((reportResult.data ?? []).map((row) => mapSalesReport(row)));
+      if (!assignmentResult.error) setAssignmentHistory((assignmentResult.data ?? []).map((row) => mapAssignmentHistory(row)));
+      if (!speechUsageResult.error) setSpeechUsages((speechUsageResult.data ?? []).map((row) => mapSpeechUsage(row)));
+      const failures = [accountResult, stakeholderResult, opportunityResult, taskResult, proposalResult, referenceResult, reportResult, assignmentResult, speechUsageResult]
+        .flatMap((result) => result.error ? [result.error.message] : []);
+      if (failures.length) setSyncError(`Sincronización parcial: ${failures.join(" · ")}`);
+      hasLoadedRemote.current = true;
+      setDataVersion((version) => version + 1);
+      return failures.length === 0;
     } catch (error) {
-      setSyncError(error instanceof Error ? error.message : "No fue posible sincronizar con Supabase");
-    } finally { setLoading(false); }
+      if (sequence === loadSequence.current) setSyncError(error instanceof Error ? error.message : "No fue posible sincronizar con Supabase");
+      return false;
+    } finally { if (sequence === loadSequence.current) setLoading(false); }
   }, []);
 
   useEffect(() => {
@@ -106,15 +119,38 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         const data = JSON.parse(saved);
         setAccounts(data.accounts ?? demoAccounts); setOpportunities(data.opportunities ?? demoOpportunities);
         setStakeholders(data.stakeholders ?? demoStakeholders); setTasks(data.tasks ?? demoTasks);
-        setProposals(data.proposals ?? demoProposals); setProfiles(data.users ?? demoUsers); setSalesReports(data.salesReports ?? demoSalesReports); setSpeechUsages(data.speechUsages ?? []);
+        setProposals(data.proposals ?? demoProposals); setReferences(data.references ?? demoReferences); setProfiles(data.users ?? demoUsers); setSalesReports(data.salesReports ?? demoSalesReports); setSpeechUsages(data.speechUsages ?? []);
       }
     } catch { localStorage.removeItem(storageKey); }
     setHydrated(true);
   }, [loadRemote, remote]);
 
   useEffect(() => {
-    if (!remote && hydrated) localStorage.setItem(storageKey, JSON.stringify({ accounts, opportunities, stakeholders, tasks, proposals, salesReports, assignmentHistory, speechUsages, users: profiles }));
-  }, [accounts, opportunities, stakeholders, tasks, proposals, salesReports, assignmentHistory, speechUsages, profiles, hydrated, remote]);
+    if (!remote && hydrated) localStorage.setItem(storageKey, JSON.stringify({ accounts, opportunities, stakeholders, tasks, proposals, references, salesReports, assignmentHistory, speechUsages, users: profiles }));
+  }, [accounts, opportunities, stakeholders, tasks, proposals, references, salesReports, assignmentHistory, speechUsages, profiles, hydrated, remote]);
+
+  useEffect(() => {
+    if (!remote) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const scheduleReload = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { void loadRemote(); }, 300);
+    };
+    const liveTables = [
+      "accounts", "stakeholders", "opportunities", "activities", "tasks", "proposals",
+      "opportunity_assignment_history", "sales_reports", "communications",
+      "scheduled_communications", "contracts", "client_documents", "opportunity_speech_usage",
+      "internal_conversations", "internal_messages"
+    ];
+    let channel = supabase.channel("crm-live-expediente");
+    liveTables.forEach((table) => {
+      channel = channel.on("postgres_changes", { event: "*", schema: "public", table }, scheduleReload);
+    });
+    channel.subscribe();
+    return () => { if (timer) clearTimeout(timer); void supabase.removeChannel(channel); };
+  }, [loadRemote, remote]);
 
   const recoverFrom = useCallback((error: unknown) => {
     const message = error instanceof Error ? error.message : typeof error === "object" && error && "message" in error ? String(error.message) : "No fue posible guardar el cambio";
@@ -122,8 +158,18 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
     void loadRemote();
   }, [loadRemote]);
 
+  const refreshData = useCallback(async () => {
+    if (remote) {
+      const ok = await loadRemote();
+      if (!ok) setDataVersion((version) => version + 1);
+      return ok;
+    }
+    setDataVersion((version) => version + 1);
+    return true;
+  }, [loadRemote, remote]);
+
   const value = useMemo<Store>(() => ({
-    accounts, opportunities, stakeholders, tasks, proposals, references, salesReports, assignmentHistory, speechUsages, users: profiles, currentUser, loading, syncError, setCurrentUser, refreshData: loadRemote,
+    accounts, opportunities, stakeholders, tasks, proposals, references, salesReports, assignmentHistory, speechUsages, users: profiles, currentUser, loading, syncError, dataVersion, setCurrentUser, refreshData,
     addProspect: (data) => {
       if (!remote) { setAccounts((items) => [data.account, ...items]); setStakeholders((items) => [data.stakeholder, ...items]); setOpportunities((items) => [data.opportunity, ...items]); return; }
       const accountId = crypto.randomUUID(); const stakeholderId = crypto.randomUUID(); const opportunityId = crypto.randomUUID();
@@ -133,7 +179,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       setAccounts((items) => [account, ...items]); setStakeholders((items) => [stakeholder, ...items]); setOpportunities((items) => [opportunity, ...items]);
       void (async () => {
         const supabase = createClient()!;
-        const { error: accountError } = await supabase.from("accounts").insert({ id: accountId, name: account.name, account_type: account.accountType, address: account.address, sector: account.sector, city: account.city, units: account.units, towers: account.towers, profile: account.profile, source: account.source, created_by: currentUser.id, owner_id: currentUser.id });
+        const { error: accountError } = await supabase.from("accounts").insert({ id: accountId, name: account.name, account_type: account.accountType, project_type: account.projectType, residential_subtype: account.residentialSubtype ?? null, custom_unit_type: account.customUnitType ?? null, address: account.address, sector: account.sector, city: account.city, units: account.units, towers: account.towers, profile: account.profile, source: account.source, created_by: currentUser.id, owner_id: currentUser.id });
         if (accountError) throw accountError;
         const [{ error: stakeholderError }, { error: opportunityError }] = await Promise.all([
           supabase.from("stakeholders").insert({ id: stakeholderId, account_id: accountId, full_name: stakeholder.fullName, role: stakeholder.role, phone: stakeholder.phone, email: stakeholder.email, influence: stakeholder.influence, position: stakeholder.position, is_decision_maker: stakeholder.isDecisionMaker }),
@@ -142,9 +188,27 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
         if (stakeholderError || opportunityError) throw stakeholderError ?? opportunityError;
       })().catch(recoverFrom);
     },
-    updateOpportunity: (id, patch) => {
+    updateAccount: async (id, patch) => {
+      setAccounts((items) => items.map((item) => item.id === id ? { ...item, ...patch } : item));
+      if (!remote) { setDataVersion((version) => version + 1); return { ok: true }; }
+      const { data: updated, error } = await createClient()!.from("accounts").update({
+        ...(patch.projectType !== undefined && { project_type: patch.projectType }),
+        ...("residentialSubtype" in patch && { residential_subtype: patch.residentialSubtype ?? null }),
+        ...("customUnitType" in patch && { custom_unit_type: patch.customUnitType ?? null }),
+        ...(patch.units !== undefined && { units: patch.units }),
+        ...(patch.accountType !== undefined && { account_type: patch.accountType }),
+        updated_at: new Date().toISOString()
+      }).eq("id", id).select("id").maybeSingle();
+      if (error || !updated) { const failure = error ?? new Error("La cuenta no está disponible para actualizarse."); recoverFrom(failure); return { ok: false, error: failure.message }; }
+      await loadRemote(); return { ok: true };
+    },
+    updateOpportunity: async (id, patch) => {
       setOpportunities((items) => items.map((item) => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item));
-      if (remote) void createClient()!.from("opportunities").update(opportunityPatchToDb(patch)).eq("id", id).then(({ error }) => { if (error) recoverFrom(error); });
+      if (!remote) { setDataVersion((version) => version + 1); return { ok: true }; }
+      const { data: updated, error } = await createClient()!.from("opportunities").update(opportunityPatchToDb(patch)).eq("id", id).select("id").maybeSingle();
+      if (error || !updated) { const failure = error ?? new Error("La oportunidad no está disponible para actualizarse."); recoverFrom(failure); return { ok: false, error: failure.message }; }
+      await loadRemote();
+      return { ok: true };
     },
     addTask: async (task) => {
       const savedTask = remote ? { ...task, id: crypto.randomUUID() } : task;
@@ -175,7 +239,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
     addProposal: (proposal) => {
       const savedProposal = remote ? { ...proposal, id: crypto.randomUUID() } : proposal;
       setProposals((items) => [savedProposal, ...items]);
-      if (remote) void createClient()!.from("proposals").insert({ id: savedProposal.id, opportunity_id: savedProposal.opportunityId, version: savedProposal.version, client_name: savedProposal.clientName, issue_date: savedProposal.issueDate, monthly_fee: savedProposal.monthlyFee, reference_ids: savedProposal.referenceIds, status: savedProposal.status, file_format: savedProposal.fileFormat, change_reason: savedProposal.changeReason || null, generated_by: currentUser.id }).then(({ error }) => { if (error) recoverFrom(error); });
+      if (remote) void createClient()!.from("proposals").insert({ id: savedProposal.id, opportunity_id: savedProposal.opportunityId, version: savedProposal.version, client_name: savedProposal.clientName, issue_date: savedProposal.issueDate, monthly_fee: savedProposal.monthlyFee, reference_ids: savedProposal.referenceIds, references_snapshot: savedProposal.referencesSnapshot ?? [], project_type: savedProposal.projectType ?? null, residential_subtype: savedProposal.residentialSubtype ?? null, custom_unit_type: savedProposal.customUnitType ?? null, status: savedProposal.status, file_format: savedProposal.fileFormat, change_reason: savedProposal.changeReason || null, generated_by: currentUser.id }).then(({ error }) => { if (error) recoverFrom(error); });
     },
     inviteUser: async (input) => {
       if (!remote) { setProfiles((items) => [{ id: `u${Date.now()}`, ...input, active: true }, ...items]); return { ok: true }; }
@@ -203,12 +267,36 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       setProfiles((items) => items.map((profile) => profile.id === id ? { ...profile, active: !profile.active } : profile));
       if (remote) void createClient()!.from("profiles").update({ active: !target.active, updated_at: new Date().toISOString() }).eq("id", id).then(({ error }) => { if (error) recoverFrom(error); });
     },
-    assignOpportunity: (id, newOwnerId, reason) => {
-      const target = opportunities.find((item) => item.id === id); if (!target || target.ownerId === newOwnerId) return;
-      const history: AssignmentHistory = { id: remote ? crypto.randomUUID() : `ah${Date.now()}`, opportunityId: id, previousOwnerId: target.ownerId, newOwnerId, changedBy: currentUser.id, changeReason: reason.trim(), changedAt: new Date().toISOString() };
-      setOpportunities((items) => items.map((item) => item.id === id ? { ...item, ownerId: newOwnerId, updatedAt: history.changedAt } : item));
-      setAssignmentHistory((items) => [history, ...items]);
-      if (remote) void (async () => { const supabase = createClient()!; const { error: updateError } = await supabase.from("opportunities").update({ owner_id: newOwnerId, updated_at: history.changedAt }).eq("id", id); if (updateError) throw updateError; const { error: historyError } = await supabase.from("opportunity_assignment_history").insert({ id: history.id, opportunity_id: id, previous_owner_id: target.ownerId, new_owner_id: newOwnerId, changed_by: currentUser.id, change_reason: history.changeReason, changed_at: history.changedAt }); if (historyError) throw historyError; })().catch(recoverFrom);
+    assignOpportunity: async (id, newOwnerId, reason, note) => {
+      const target = opportunities.find((item) => item.id === id);
+      if (!target) return { ok: false, error: "Oportunidad no encontrada." };
+      if (target.ownerId === newOwnerId) return { ok: false, error: "Selecciona un vendedor diferente al actual." };
+      const normalizedReason = reason.trim(); const normalizedNote = note?.trim();
+      if (normalizedReason.length < 3) return { ok: false, error: "Indica un motivo de al menos 3 caracteres." };
+      if (!remote) {
+        const history: AssignmentHistory = { id: `ah${Date.now()}`, opportunityId: id, previousOwnerId: target.ownerId, newOwnerId, changedBy: currentUser.id, changeReason: normalizedReason, note: normalizedNote || undefined, changedAt: new Date().toISOString() };
+        setOpportunities((items) => items.map((item) => item.id === id ? { ...item, ownerId: newOwnerId, updatedAt: history.changedAt } : item));
+        setAccounts((items) => items.map((item) => item.id === target.accountId ? { ...item, ownerId: newOwnerId } : item));
+        setAssignmentHistory((items) => [history, ...items]); setDataVersion((version) => version + 1);
+        return { ok: true };
+      }
+      try {
+        const response = await fetch("/api/opportunities/assign", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ opportunityId: id, newOwnerId, reason: normalizedReason, note: normalizedNote }) });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) { const message = result.error ?? "No fue posible reasignar la oportunidad."; setSyncError(message); return { ok: false, error: message }; }
+        if (!result.assignment) { const message = "La asignación se confirmó sin datos de auditoría."; setSyncError(message); return { ok: false, error: message }; }
+        const history = mapAssignmentHistory(result.assignment as Record<string, unknown>);
+        setOpportunities((items) => items.map((item) => item.id === id ? { ...item, ownerId: newOwnerId, updatedAt: history.changedAt } : item));
+        setAccounts((items) => items.map((item) => item.id === target.accountId ? { ...item, ownerId: newOwnerId } : item));
+        setTasks((items) => items.map((item) => item.opportunityId === id && item.ownerId === target.ownerId && item.status === "pendiente" ? { ...item, ownerId: newOwnerId } : item));
+        setAssignmentHistory((items) => [history, ...items.filter((item) => item.id !== history.id)]);
+        setDataVersion((version) => version + 1);
+        void loadRemote();
+        return { ok: true };
+      } catch {
+        const message = "No fue posible conectar con el servicio de asignaciones.";
+        setSyncError(message); return { ok: false, error: message };
+      }
     },
     closeSale: (input) => {
       const opportunity = opportunities.find((item) => item.id === input.opportunityId); if (!opportunity || salesReports.some((item) => item.opportunityId === input.opportunityId)) return;
@@ -246,7 +334,7 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       setAccounts(demoAccounts); setOpportunities(demoOpportunities); setStakeholders(demoStakeholders); setTasks(demoTasks);
       setProposals(demoProposals); setProfiles(demoUsers); setReferences(demoReferences); setSalesReports(demoSalesReports); setAssignmentHistory([]); setSpeechUsages([]); localStorage.removeItem(storageKey);
     }
-  }), [accounts, opportunities, stakeholders, tasks, proposals, references, salesReports, assignmentHistory, speechUsages, profiles, currentUser, loading, syncError, remote, loadRemote, recoverFrom]);
+  }), [accounts, opportunities, stakeholders, tasks, proposals, references, salesReports, assignmentHistory, speechUsages, profiles, currentUser, loading, syncError, dataVersion, remote, loadRemote, recoverFrom, refreshData]);
 
   return <CrmContext.Provider value={value}>{children}</CrmContext.Provider>;
 }

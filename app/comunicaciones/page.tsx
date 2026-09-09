@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, CheckCheck, CircleUserRound, FileText, Mail, MessageCircle, Paperclip, Plus, Search, Send, UserRoundCog, XCircle } from "lucide-react";
+import { CalendarClock, CheckCheck, CircleUserRound, FileText, Mail, MessageCircle, Paperclip, Plus, Search, Send, UserRoundCog, UsersRound, XCircle } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Modal, PageHeader } from "@/components/ui";
 import { useCrm } from "@/components/crm-provider";
@@ -8,6 +8,7 @@ import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { mapCommunication, mapCommunicationThread, mapScheduledCommunication } from "@/lib/supabase/mappers";
 import type { Communication, CommunicationThread, ScheduledCommunication } from "@/types/domain";
 import { EmailPanel } from "./email-panel";
+import { TeamPanel } from "./team-panel";
 import styles from "./communications.module.css";
 
 const stageLabel: Record<string, string> = {
@@ -21,7 +22,7 @@ type UploadedAttachment = { path: string; name: string; mime: string; size: numb
 
 export default function CommunicationsPage() {
   const { accounts, opportunities, stakeholders, users, proposals } = useCrm();
-  const [tab, setTab] = useState<"whatsapp" | "email" | "scheduled">("whatsapp");
+  const [tab, setTab] = useState<"whatsapp" | "email" | "team" | "scheduled">("whatsapp");
   const [messages, setMessages] = useState<Communication[]>([]);
   const [threads, setThreads] = useState<CommunicationThread[]>([]);
   const [scheduled, setScheduled] = useState<ScheduledCommunication[]>([]);
@@ -234,6 +235,7 @@ export default function CommunicationsPage() {
     <div className={styles.tabs}>
       <button className={tab === "whatsapp" ? styles.activeTab : ""} onClick={() => setTab("whatsapp")}><MessageCircle size={17}/> WhatsApp</button>
       <button className={tab === "email" ? styles.activeTab : ""} onClick={() => setTab("email")}><Mail size={17}/> Correo</button>
+      <button className={tab === "team" ? styles.activeTab : ""} onClick={() => setTab("team")}><UsersRound size={17}/> Equipo</button>
       <button className={tab === "scheduled" ? styles.activeTab : ""} onClick={() => setTab("scheduled")}><CalendarClock size={17}/> Programados <span>{scheduled.filter((item) => item.status === "scheduled").length}</span></button>
     </div>
 
@@ -257,13 +259,13 @@ export default function CommunicationsPage() {
       </aside>
 
       <section className={styles.chat}>
-        {!activeThread ? <div className={styles.chatPlaceholder}><MessageCircle size={48}/><h2>Centro WhatsApp</h2><p>Selecciona una conversación o crea una nueva para comenzar.</p><span>Canal conectado a WhatsApp Business.</span></div> : <>
+        {!activeThread ? <div className={styles.chatPlaceholder}><MessageCircle size={48}/><h2>Centro WhatsApp</h2><p>Selecciona una conversación o crea una nueva para comenzar.</p><span>Canal preparado en modo seguro de QA.</span></div> : <>
           <header className={styles.chatHeader}>
             <span className={styles.avatar}>{(activeStakeholder?.fullName ?? "C").split(" ").slice(0, 2).map((part) => part[0]).join("")}</span>
             <div><b>{activeStakeholder?.fullName}</b><small>{activeAccount?.name} · {activeStakeholder?.phone}</small></div>
             <label className={styles.agentSelect}><UserRoundCog size={15}/><span><small>Atiende</small><select value={assignedAgent?.id ?? ""} onChange={(event) => void reassignConversation(event.target.value)}>{activeUsers.map((user) => <option value={user.id} key={user.id}>{user.fullName}</option>)}</select></span></label>
           </header>
-          <div className={styles.notice}>Envío oficial activo · {realtimeStatus === "live" ? "Respuestas en tiempo real." : realtimeStatus === "fallback" ? "Actualización automática cada 15 segundos." : "Conectando actualizaciones en vivo…"}</div>
+          <div className={styles.notice}>Modo seguro / simulación de QA · {realtimeStatus === "live" ? "Respuestas en tiempo real." : realtimeStatus === "fallback" ? "Actualización automática cada 15 segundos." : "Conectando actualizaciones en vivo…"}</div>
           <div className={styles.messages}>
             {activeMessages.length === 0 && <div className={styles.firstMessage}><CircleUserRound size={22}/><div><b>Inicio de conversación</b><p>El primer mensaje del agente incluirá su presentación visible para que el cliente sepa quién le está atendiendo.</p></div></div>}
             {activeMessages.map((message) => <div key={message.id} className={`${styles.bubbleRow} ${message.direction === "outbound" ? styles.outbound : styles.inbound}`}><div className={styles.bubble}>{message.agentNameSnapshot && message.direction === "outbound" && <small className={styles.agentName}>{message.agentNameSnapshot}</small>}<p>{message.bodyText}</p>{message.mediaName && <a href={`/api/communications/attachments/download?communicationId=${message.id}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 6, fontWeight: 700 }}><Paperclip size={14}/>{message.mediaName}</a>}<span>{new Date(message.sentAt ?? message.createdAt).toLocaleTimeString("es-DO", { hour: "2-digit", minute: "2-digit" })}{message.direction === "outbound" && <CheckCheck size={14}/>}</span></div></div>)}
@@ -292,6 +294,8 @@ export default function CommunicationsPage() {
     </div>}
 
     {tab === "email" && <EmailPanel accounts={accounts} opportunities={opportunities} stakeholders={stakeholders} proposals={proposals} messages={messages} onMessageSent={(message) => setMessages((items) => [...items, message])} onReload={load} />}
+
+    {tab === "team" && <TeamPanel />}
 
     {tab === "scheduled" && <div className={styles.scheduleGrid}>
       {scheduled.length === 0 ? <div className={styles.secondaryPanel}><CalendarClock size={38}/><h2>No hay mensajes programados</h2><p>Desde una conversación podrás programar seguimientos únicos o recurrentes.</p></div> : scheduled.map((item) => {

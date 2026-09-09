@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 const schema = z.object({ opportunityId: z.string().uuid() });
 
 type TimelineItem = {
-  kind: "communication" | "activity" | "task" | "proposal" | "assignment" | "scheduled" | "contract";
+  kind: "communication" | "internal_message" | "activity" | "task" | "proposal" | "assignment" | "scheduled" | "contract";
   id: string;
   at: string;
   data: Record<string, unknown>;
@@ -27,10 +27,15 @@ export async function GET(request: Request) {
     .single();
   if (opportunityError || !opportunity) return NextResponse.json({ error: "Oportunidad no disponible." }, { status: 404 });
 
-  const [communicationsResult, activitiesResult, tasksResult, proposalsResult, assignmentsResult, scheduledResult, contractsResult] = await Promise.all([
+  const [communicationsResult, internalMessagesResult, activitiesResult, tasksResult, proposalsResult, assignmentsResult, scheduledResult, contractsResult] = await Promise.all([
     supabase.from("communications")
       .select("id,stakeholder_id,channel,direction,subject,body_text,status,agent_name_snapshot,message_type,media_name,transcription_text,transcription_status,created_at,sent_at,delivered_at,opened_at")
       .eq("opportunity_id", opportunity.id)
+      .order("created_at", { ascending: false })
+      .limit(200),
+    supabase.from("internal_messages")
+      .select("id,conversation_id,sender_id,body_text,reply_to_id,message_type,attachment_name,created_at,internal_conversations!inner(opportunity_id,title)")
+      .eq("internal_conversations.opportunity_id", opportunity.id)
       .order("created_at", { ascending: false })
       .limit(200),
     supabase.from("activities")
@@ -49,7 +54,7 @@ export async function GET(request: Request) {
       .order("generated_at", { ascending: false })
       .limit(100),
     supabase.from("opportunity_assignment_history")
-      .select("id,previous_owner_id,new_owner_id,changed_by,change_reason,changed_at")
+      .select("id,previous_owner_id,new_owner_id,changed_by,change_reason,note,changed_at")
       .eq("opportunity_id", opportunity.id)
       .order("changed_at", { ascending: false })
       .limit(100),
@@ -64,15 +69,24 @@ export async function GET(request: Request) {
       .limit(1)
   ]);
 
-  const results = [communicationsResult, activitiesResult, tasksResult, proposalsResult, assignmentsResult, scheduledResult, contractsResult];
+  const results = [communicationsResult, internalMessagesResult, activitiesResult, tasksResult, proposalsResult, assignmentsResult, scheduledResult, contractsResult];
   const failed = results.find((result) => result.error);
-  if (failed?.error) return NextResponse.json({ error: failed.error.message }, { status: 500 });
+  if (failed?.error) {
+    console.error("Commercial timeline query failed", { code: failed.error.code, details: failed.error.details });
+    return NextResponse.json({ error: "No fue posible consultar el historial comercial." }, { status: 500 });
+  }
 
   const timeline: TimelineItem[] = [
     ...(communicationsResult.data ?? []).map((item) => ({
       kind: "communication" as const,
       id: item.id,
       at: item.sent_at ?? item.created_at,
+      data: item
+    })),
+    ...(internalMessagesResult.data ?? []).map((item) => ({
+      kind: "internal_message" as const,
+      id: item.id,
+      at: item.created_at,
       data: item
     })),
     ...(activitiesResult.data ?? []).map((item) => ({
@@ -119,6 +133,7 @@ export async function GET(request: Request) {
     meta: {
       total: timeline.length,
       communications: communicationsResult.data?.length ?? 0,
+      internalMessages: internalMessagesResult.data?.length ?? 0,
       activities: activitiesResult.data?.length ?? 0,
       tasks: tasksResult.data?.length ?? 0,
       proposals: proposalsResult.data?.length ?? 0,

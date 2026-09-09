@@ -8,10 +8,10 @@ export const users: UserProfile[] = [
 ];
 
 export const accounts: Account[] = [
-  { id: "a1", name: "Torre Meridian Park", accountType: "torre_residencial", address: "Av. Abraham Lincoln 962", sector: "Piantini", city: "Santo Domingo", units: 64, towers: 1, profile: "premium", ownerId: "u3", source: "Referido", createdAt: "2026-07-12" },
-  { id: "a2", name: "Residencial Altos del Este", accountType: "condominio_existente", address: "Av. Ecológica 18", sector: "Santo Domingo Este", city: "Santo Domingo", units: 36, towers: 3, profile: "familiar", ownerId: "u2", source: "Google", createdAt: "2026-07-19" },
-  { id: "a3", name: "Proyecto Nova Center", accountType: "proyecto_nuevo", address: "Av. Winston Churchill 70", sector: "Ensanche Paraíso", city: "Santo Domingo", units: 110, towers: 2, profile: "premium", ownerId: "u3", source: "Constructora", createdAt: "2026-07-28" },
-  { id: "a4", name: "Condominio Vista Verde", accountType: "condominio_existente", address: "C. Jacinto Mañón 12", sector: "Ensanche Serrallés", city: "Santo Domingo", units: 48, towers: 2, profile: "familiar", ownerId: "u3", source: "Evento", createdAt: "2026-08-02" }
+  { id: "a1", name: "Torre Meridian Park", accountType: "torre_residencial", projectType: "residencial", residentialSubtype: "apartamento", address: "Av. Abraham Lincoln 962", sector: "Piantini", city: "Santo Domingo", units: 64, towers: 1, profile: "premium", ownerId: "u3", source: "Referido", createdAt: "2026-07-12" },
+  { id: "a2", name: "Residencial Altos del Este", accountType: "condominio_existente", projectType: "residencial", residentialSubtype: "apartamento", address: "Av. Ecológica 18", sector: "Santo Domingo Este", city: "Santo Domingo", units: 36, towers: 3, profile: "familiar", ownerId: "u2", source: "Google", createdAt: "2026-07-19" },
+  { id: "a3", name: "Proyecto Nova Center", accountType: "proyecto_nuevo", projectType: "comercial", address: "Av. Winston Churchill 70", sector: "Ensanche Paraíso", city: "Santo Domingo", units: 110, towers: 2, profile: "premium", ownerId: "u3", source: "Constructora", createdAt: "2026-07-28" },
+  { id: "a4", name: "Condominio Vista Verde", accountType: "condominio_existente", projectType: "residencial", residentialSubtype: "casa", address: "C. Jacinto Mañón 12", sector: "Ensanche Serrallés", city: "Santo Domingo", units: 48, towers: 2, profile: "familiar", ownerId: "u3", source: "Evento", createdAt: "2026-08-02" }
 ];
 
 export const stakeholders: Stakeholder[] = [
@@ -36,12 +36,14 @@ export const tasks: Task[] = [
 ];
 
 export const references: CommercialReference[] = [
-  { id: "r1", clientName: "Condominio Torre Ducal", location: "C. Padre Fantino Falco 79, Serrallés, D.N.", units: 64, accountType: "torre_residencial", profile: "premium", approved: true },
-  { id: "r2", clientName: "Torre Arche Tres", location: "C. General Cambiazo No. 8, Ens. Naco, D.N.", units: 23, accountType: "torre_residencial", profile: "premium", approved: true },
-  { id: "r3", clientName: "Torre Kesington", location: "C. Rafael Augusto Sánchez 13, Ens. Naco", units: 16, accountType: "torre_residencial", profile: "premium", approved: true },
-  { id: "r4", clientName: "Residencial Jardines del Sur", location: "Av. Independencia, D.N.", units: 40, accountType: "condominio_existente", profile: "familiar", approved: true },
-  { id: "r5", clientName: "Condominio Paseo del Este", location: "Av. Ecológica, Santo Domingo Este", units: 32, accountType: "condominio_existente", profile: "familiar", approved: true },
-  { id: "r6", clientName: "Torres del Parque", location: "Ensanche Paraíso, D.N.", units: 96, accountType: "proyecto_nuevo", profile: "premium", approved: true }
+  { id: "r1", clientName: "Condominio Torre Ducal", location: "C. Padre Fantino Falco 79, Serrallés, D.N.", units: 64, accountType: "torre_residencial", projectType: "residencial", residentialSubtype: "apartamento", profile: "premium", approved: true, active: true, preferred: true, priority: 90, incorporatedAt: "2026-07-01", contactShareAuthorized: false },
+  { id: "r2", clientName: "Torre Arche Tres", location: "C. General Cambiazo No. 8, Ens. Naco, D.N.", units: 23, accountType: "torre_residencial", projectType: "residencial", residentialSubtype: "apartamento", profile: "premium", approved: true, active: true, preferred: true, priority: 80, incorporatedAt: "2026-06-01", contactShareAuthorized: false },
+  { id: "r3", clientName: "Torre Kesington", location: "C. Rafael Augusto Sánchez 13, Ens. Naco", units: 16, accountType: "torre_residencial", projectType: "residencial", residentialSubtype: "apartamento", profile: "premium", approved: true, active: true, preferred: false, priority: 60, incorporatedAt: "2026-05-01", contactShareAuthorized: false },
+  { id: "r4", clientName: "Residencial Jardines del Sur", location: "Av. Independencia, D.N.", units: 40, accountType: "condominio_existente", projectType: "residencial", residentialSubtype: "casa", profile: "familiar", approved: true, active: true, preferred: false, priority: 50, incorporatedAt: "2026-04-01", contactShareAuthorized: false },
+  { id: "r5", clientName: "Condominio Paseo del Este", location: "Av. Ecológica, Santo Domingo Este", units: 32, accountType: "condominio_existente", projectType: "residencial", residentialSubtype: "apartamento", profile: "familiar", approved: true, active: true, preferred: false, priority: 40, incorporatedAt: "2026-03-01", contactShareAuthorized: false },
+  { id: "r6", clientName: "Torres del Parque", location: "Ensanche Paraíso, D.N.", units: 96, accountType: "proyecto_nuevo", projectType: "comercial", profile: "premium", approved: true, active: true, preferred: true, priority: 85, incorporatedAt: "2026-08-01", contactShareAuthorized: false },
+  { id: "r7", clientName: "Centro Empresarial Index", location: "Av. 27 de Febrero, D.N.", units: 72, accountType: "proyecto_nuevo", projectType: "comercial", profile: "corporativo", approved: true, active: true, preferred: true, priority: 75, incorporatedAt: "2026-08-15", contactShareAuthorized: false },
+  { id: "r8", clientName: "Plaza Comercial del Este", location: "Santo Domingo Este", units: 48, accountType: "condominio_existente", projectType: "comercial", profile: "corporativo", approved: true, active: true, preferred: false, priority: 65, incorporatedAt: "2026-07-15", contactShareAuthorized: false }
 ];
 
 export const proposals: Proposal[] = [

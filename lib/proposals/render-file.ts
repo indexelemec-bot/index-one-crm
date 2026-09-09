@@ -2,13 +2,16 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { generateProposalPdf } from "@/lib/proposals/generate-pdf";
 import { generateProposalDocx } from "@/lib/proposals/generate-template";
-import type { CommercialReference, ProposalFileFormat } from "@/types/domain";
+import type { CommercialReference, ProjectType, ProposalFileFormat, ResidentialSubtype } from "@/types/domain";
 
 export interface ProposalFileData {
   clientName: string;
   issueDate: string;
   monthlyFee: number;
   references: CommercialReference[];
+  projectType: ProjectType;
+  residentialSubtype?: ResidentialSubtype;
+  customUnitType?: string;
 }
 
 export function proposalFileName(clientName: string, format: ProposalFileFormat, version?: number) {

@@ -1,41 +1,467 @@
-export type UserRole = "superadmin" | "gerencia_comercial" | "ejecutivo" | "administracion" | "consulta";
-export type AccountType = "condominio_existente" | "torre_residencial" | "proyecto_nuevo" | "constructora" | "desarrollador" | "aliado";
-export type StakeholderRole = "presidente" | "tesorero" | "secretario" | "miembro_junta" | "propietario_influyente" | "constructora" | "administrador_actual" | "otro";
-export type OpportunityStage = "prospecto_identificado" | "problema_detectado" | "contacto_decisor" | "diagnostico" | "solucion_recomendada" | "presentacion" | "propuesta" | "negociacion" | "aprobacion" | "contrato_transicion" | "cliente_activo" | "perdida";
+export type UserRole =
+  | "superadmin"
+  | "gerencia_comercial"
+  | "ejecutivo"
+  | "administracion"
+  | "consulta";
+export type AccountType =
+  | "condominio_existente"
+  | "torre_residencial"
+  | "proyecto_nuevo"
+  | "constructora"
+  | "desarrollador"
+  | "aliado";
+export type ProjectType = "comercial" | "residencial";
+export type ResidentialSubtype = "apartamento" | "casa" | "otros";
+export type StakeholderRole =
+  | "presidente"
+  | "tesorero"
+  | "secretario"
+  | "miembro_junta"
+  | "propietario_influyente"
+  | "constructora"
+  | "administrador_actual"
+  | "otro";
+export type OpportunityStage =
+  | "prospecto_identificado"
+  | "problema_detectado"
+  | "contacto_decisor"
+  | "diagnostico"
+  | "solucion_recomendada"
+  | "presentacion"
+  | "propuesta"
+  | "negociacion"
+  | "aprobacion"
+  | "contrato_transicion"
+  | "cliente_activo"
+  | "perdida";
 export type TaskStatus = "pendiente" | "completada" | "vencida";
-export type ProposalStatus = "borrador" | "generada" | "enviada" | "vista" | "aceptada" | "rechazada";
+export type ProposalStatus =
+  | "borrador"
+  | "generada"
+  | "enviada"
+  | "vista"
+  | "aceptada"
+  | "rechazada";
 export type ProposalFileFormat = "docx" | "pdf";
-export type ClientDocumentTemplateKey = "onboarding_30_60_90" | "document_request";
-export type CommissionStatus = "proyectada" | "ganada" | "pagadera" | "pagada" | "revertida";
+export type ClientDocumentTemplateKey =
+  | "onboarding_30_60_90"
+  | "document_request";
+export type CommissionStatus =
+  | "proyectada"
+  | "ganada"
+  | "pagadera"
+  | "pagada"
+  | "revertida";
 export type SpeechChannel = "llamada" | "reunion" | "email" | "whatsapp";
-export type SpeechOutcome = "sin_respuesta" | "interes" | "reunion" | "propuesta" | "objecion" | "cierre" | "no_interes";
+export type SpeechOutcome =
+  | "sin_respuesta"
+  | "interes"
+  | "reunion"
+  | "propuesta"
+  | "objecion"
+  | "cierre"
+  | "no_interes";
 export type CommunicationChannel = "email" | "whatsapp";
 export type CommunicationDirection = "outbound" | "inbound";
-export type CommunicationThreadStatus = "open" | "pending" | "closed" | "archived";
-export type ScheduledCommunicationStatus = "scheduled" | "processing" | "sent" | "cancelled" | "failed";
-export type TranscriptionStatus = "not_requested" | "pending" | "processing" | "completed" | "failed";
-export type MarketingLeadStatus = "new" | "matched" | "converted" | "ignored" | "error";
+export type CommunicationThreadStatus =
+  | "open"
+  | "pending"
+  | "closed"
+  | "archived";
+export type InternalConversationStatus =
+  | "open"
+  | "pending"
+  | "waiting_client"
+  | "waiting_internal"
+  | "closed";
+export type InternalConversationPriority = "normal" | "important" | "urgent";
+export type ScheduledCommunicationStatus =
+  | "scheduled"
+  | "processing"
+  | "sent"
+  | "cancelled"
+  | "failed";
+export type TranscriptionStatus =
+  | "not_requested"
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed";
+export type MarketingLeadStatus =
+  | "new"
+  | "matched"
+  | "converted"
+  | "ignored"
+  | "error";
 export type ArmAgentKind = "interno" | "externo";
-export type ArmAgentStatus = "borrador" | "piloto" | "activo" | "pausado" | "retirado";
-export type ArmAutonomyLevel = "asesor" | "supervisado" | "acotado" | "autonomo";
-export type ArmDecisionStatus = "recomendacion" | "pendiente_aprobacion" | "aprobada" | "rechazada" | "ejecutada" | "fallida";
+export type ArmAgentStatus =
+  | "borrador"
+  | "piloto"
+  | "activo"
+  | "pausado"
+  | "retirado";
+export type ArmAutonomyLevel =
+  | "asesor"
+  | "supervisado"
+  | "acotado"
+  | "autonomo";
+export type ArmDecisionStatus =
+  | "recomendacion"
+  | "pendiente_aprobacion"
+  | "aprobada"
+  | "rechazada"
+  | "ejecutada"
+  | "fallida";
 
-export interface UserProfile { id: string; fullName: string; email: string; role: UserRole; active: boolean; deletedAt?: string; reassignedTo?: string; }
-export interface Account { id: string; name: string; accountType: AccountType; address: string; sector: string; city: string; units: number; towers: number; profile: string; ownerId: string; source: string; createdAt: string; }
-export interface Stakeholder { id: string; accountId: string; fullName: string; role: StakeholderRole; phone: string; email: string; influence: number; position: "champion" | "neutral" | "opposed" | "unknown"; isDecisionMaker: boolean; }
-export interface Opportunity { id: string; accountId: string; stage: OpportunityStage; primaryProblem: string; impact: string; proposedSolution: string; monthlyFee: number; probability: number; nextAction: string; nextActionAt: string; ownerId: string; updatedAt: string; lostReason?: string; followupEnabled?: boolean; nextFollowupAt?: string; followupIntervalMonths?: number; }
-export interface Task { id: string; opportunityId: string; title: string; dueAt: string; priority: "alta" | "media" | "baja"; status: TaskStatus; ownerId: string; outcome?: string; }
-export interface CommercialReference { id: string; clientName: string; location: string; units: number; accountType: AccountType; profile: string; approved: boolean; }
-export interface Proposal { id: string; opportunityId: string; version: number; clientName: string; issueDate: string; monthlyFee: number; referenceIds: string[]; status: ProposalStatus; generatedAt: string; fileFormat: ProposalFileFormat; changeReason?: string; }
-export interface ClientDocument { id: string; opportunityId: string; stakeholderId?: string; templateKey: ClientDocumentTemplateKey; title: string; fileName: string; dataSnapshot: Record<string, unknown>; status: "generated" | "sent"; generatedBy: string; generatedAt: string; sentAt?: string; }
-export interface Communication { id: string; opportunityId: string; proposalId?: string; clientDocumentId?: string; stakeholderId?: string; threadId?: string; channel: CommunicationChannel; direction: CommunicationDirection; fromAddress: string; toAddress: string; subject?: string; bodyText: string; templateKey?: string; provider?: string; providerMessageId?: string; providerMediaId?: string; attachmentFormat?: ProposalFileFormat; status: string; errorMessage?: string; agentId?: string; agentNameSnapshot?: string; messageType?: string; mediaPath?: string; mediaName?: string; mediaMime?: string; transcriptionText?: string; transcriptionStatus?: TranscriptionStatus; transcriptionError?: string; transcriptionProvider?: string; transcriptionLanguage?: string; transcriptionCompletedAt?: string; replyToProviderMessageId?: string; isInternal?: boolean; sentAt?: string; deliveredAt?: string; openedAt?: string; createdAt: string; }
-export interface CommunicationThread { id: string; opportunityId: string; stakeholderId: string; channel: CommunicationChannel; assignedTo?: string; status: CommunicationThreadStatus; unreadCount: number; lastMessageAt?: string; lastInboundAt?: string; lastOutboundAt?: string; createdAt: string; updatedAt: string; }
-export interface CommunicationAssignmentHistory { id: string; threadId: string; previousAgentId?: string; newAgentId?: string; changedBy: string; reason?: string; changedAt: string; }
-export interface ScheduledCommunication { id: string; threadId?: string; opportunityId: string; stakeholderId: string; channel: CommunicationChannel; bodyText: string; templateKey?: string; attachmentPath?: string; attachmentName?: string; scheduledFor: string; recurrenceMonths?: number; status: ScheduledCommunicationStatus; createdBy: string; sentCommunicationId?: string; errorMessage?: string; createdAt: string; updatedAt: string; }
-export interface MarketingLead { id: string; provider: string; sourceChannel: string; leadId?: string; formId?: string; campaignId?: string; campaignName?: string; adId?: string; adName?: string; fullName?: string; phone?: string; email?: string; condominiumName?: string; sector?: string; units?: number; primaryProblem?: string; stakeholderRole?: string; boardMember?: boolean; wantsAssessment?: boolean; status: MarketingLeadStatus; accountId?: string; stakeholderId?: string; opportunityId?: string; assignedTo?: string; errorMessage?: string; receivedAt: string; convertedAt?: string; }
-export interface SalesReport { id: string; opportunityId: string; accountId: string; sellerId: string; closedBy: string; closedAt: string; initialFee: number; finalFee: number; annualValue: number; commissionRate: number; commissionBase: number; commissionAmount: number; commissionStatus: CommissionStatus; firstPaymentReceivedAt?: string; commissionPaidAt?: string; contractReference: string; notes?: string; createdAt: string; }
-export interface AssignmentHistory { id: string; opportunityId: string; previousOwnerId?: string; newOwnerId: string; changedBy: string; changeReason: string; changedAt: string; }
-export interface SpeechUsage { id: string; speechId: string; opportunityId: string; stakeholderId?: string; stage: OpportunityStage; userId: string; channel: SpeechChannel; outcome: SpeechOutcome; notes?: string; nextAction: string; nextActionAt: string; usedAt: string; }
-export interface ArmAgent { id: string; name: string; slug: string; kind: ArmAgentKind; roleKey: string; description: string; status: ArmAgentStatus; autonomyLevel: ArmAutonomyLevel; riskLevel: "bajo" | "medio" | "alto"; requiresHumanApproval: boolean; capabilities: string[]; allowedChannels: string[]; systemInstructions?: string; ownerId?: string; createdAt: string; updatedAt: string; }
-export interface ArmAgentAssignment { id: string; agentId: string; opportunityId: string; relationshipRole: "principal" | "apoyo" | "revision" | "escalamiento"; status: "activa" | "pausada" | "completada"; notes?: string; assignedBy: string; assignedAt: string; updatedAt: string; }
-export interface ArmInteraction { id: string; agentId: string; opportunityId?: string; stakeholderId?: string; initiatedBy: string; interactionType: string; inputSummary: string; outputSummary?: string; decisionStatus: ArmDecisionStatus; confidenceScore?: number; requiresApproval: boolean; approvedBy?: string; approvedAt?: string; outcome?: string; createdAt: string; updatedAt: string; }
+export interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  active: boolean;
+  deletedAt?: string;
+  reassignedTo?: string;
+}
+export interface Account {
+  id: string;
+  name: string;
+  accountType: AccountType;
+  projectType: ProjectType;
+  residentialSubtype?: ResidentialSubtype;
+  customUnitType?: string;
+  address: string;
+  sector: string;
+  city: string;
+  units: number;
+  towers: number;
+  profile: string;
+  ownerId: string;
+  source: string;
+  createdAt: string;
+}
+export interface Stakeholder {
+  id: string;
+  accountId: string;
+  fullName: string;
+  role: StakeholderRole;
+  phone: string;
+  email: string;
+  influence: number;
+  position: "champion" | "neutral" | "opposed" | "unknown";
+  isDecisionMaker: boolean;
+}
+export interface Opportunity {
+  id: string;
+  accountId: string;
+  stage: OpportunityStage;
+  primaryProblem: string;
+  impact: string;
+  proposedSolution: string;
+  monthlyFee: number;
+  probability: number;
+  nextAction: string;
+  nextActionAt: string;
+  ownerId: string;
+  updatedAt: string;
+  lostReason?: string;
+  followupEnabled?: boolean;
+  nextFollowupAt?: string;
+  followupIntervalMonths?: number;
+}
+export interface Task {
+  id: string;
+  opportunityId: string;
+  title: string;
+  dueAt: string;
+  priority: "alta" | "media" | "baja";
+  status: TaskStatus;
+  ownerId: string;
+  outcome?: string;
+}
+export interface CommercialReference {
+  id: string;
+  clientName: string;
+  location: string;
+  units: number;
+  accountType: AccountType;
+  projectType: ProjectType;
+  residentialSubtype?: ResidentialSubtype;
+  customUnitType?: string;
+  profile: string;
+  approved: boolean;
+  active: boolean;
+  preferred: boolean;
+  priority: number;
+  incorporatedAt: string;
+  notes?: string;
+  contactShareAuthorized: boolean;
+}
+export interface Proposal {
+  id: string;
+  opportunityId: string;
+  version: number;
+  clientName: string;
+  issueDate: string;
+  monthlyFee: number;
+  referenceIds: string[];
+  referencesSnapshot?: CommercialReference[];
+  projectType?: ProjectType;
+  residentialSubtype?: ResidentialSubtype;
+  customUnitType?: string;
+  status: ProposalStatus;
+  generatedAt: string;
+  fileFormat: ProposalFileFormat;
+  changeReason?: string;
+}
+export interface ClientDocument {
+  id: string;
+  opportunityId: string;
+  stakeholderId?: string;
+  templateKey: ClientDocumentTemplateKey;
+  title: string;
+  fileName: string;
+  dataSnapshot: Record<string, unknown>;
+  status: "generated" | "sent";
+  generatedBy: string;
+  generatedAt: string;
+  sentAt?: string;
+}
+export interface Communication {
+  id: string;
+  opportunityId: string;
+  proposalId?: string;
+  clientDocumentId?: string;
+  stakeholderId?: string;
+  threadId?: string;
+  channel: CommunicationChannel;
+  direction: CommunicationDirection;
+  fromAddress: string;
+  toAddress: string;
+  subject?: string;
+  bodyText: string;
+  templateKey?: string;
+  provider?: string;
+  providerMessageId?: string;
+  providerMediaId?: string;
+  attachmentFormat?: ProposalFileFormat;
+  status: string;
+  errorMessage?: string;
+  agentId?: string;
+  agentNameSnapshot?: string;
+  messageType?: string;
+  mediaPath?: string;
+  mediaName?: string;
+  mediaMime?: string;
+  transcriptionText?: string;
+  transcriptionStatus?: TranscriptionStatus;
+  transcriptionError?: string;
+  transcriptionProvider?: string;
+  transcriptionLanguage?: string;
+  transcriptionCompletedAt?: string;
+  replyToProviderMessageId?: string;
+  isInternal?: boolean;
+  sentAt?: string;
+  deliveredAt?: string;
+  openedAt?: string;
+  createdAt: string;
+}
+export interface CommunicationThread {
+  id: string;
+  opportunityId: string;
+  stakeholderId: string;
+  channel: CommunicationChannel;
+  assignedTo?: string;
+  status: CommunicationThreadStatus;
+  unreadCount: number;
+  lastMessageAt?: string;
+  lastInboundAt?: string;
+  lastOutboundAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface CommunicationAssignmentHistory {
+  id: string;
+  threadId: string;
+  previousAgentId?: string;
+  newAgentId?: string;
+  changedBy: string;
+  reason?: string;
+  changedAt: string;
+}
+export interface InternalConversationMember {
+  userId: string;
+  role: "responsible" | "member" | "observer";
+  joinedAt: string;
+  removedAt?: string;
+  lastReadAt?: string;
+}
+export interface InternalConversation {
+  id: string;
+  title: string;
+  conversationType: "direct" | "group";
+  opportunityId?: string;
+  status: InternalConversationStatus;
+  priority: InternalConversationPriority;
+  responsibleId?: string;
+  createdBy: string;
+  lastMessageAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  members: InternalConversationMember[];
+  unreadCount: number;
+  mentioned: boolean;
+}
+export interface InternalMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  bodyText: string;
+  replyToId?: string;
+  messageType: "internal_note" | "system";
+  attachmentPath?: string;
+  attachmentName?: string;
+  attachmentMime?: string;
+  attachmentSize?: number;
+  mentionedUserIds: string[];
+  createdAt: string;
+}
+export interface ScheduledCommunication {
+  id: string;
+  threadId?: string;
+  opportunityId: string;
+  stakeholderId: string;
+  channel: CommunicationChannel;
+  bodyText: string;
+  templateKey?: string;
+  attachmentPath?: string;
+  attachmentName?: string;
+  scheduledFor: string;
+  recurrenceMonths?: number;
+  status: ScheduledCommunicationStatus;
+  createdBy: string;
+  sentCommunicationId?: string;
+  errorMessage?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface MarketingLead {
+  id: string;
+  provider: string;
+  sourceChannel: string;
+  leadId?: string;
+  formId?: string;
+  campaignId?: string;
+  campaignName?: string;
+  adId?: string;
+  adName?: string;
+  fullName?: string;
+  phone?: string;
+  email?: string;
+  condominiumName?: string;
+  sector?: string;
+  units?: number;
+  primaryProblem?: string;
+  stakeholderRole?: string;
+  boardMember?: boolean;
+  wantsAssessment?: boolean;
+  status: MarketingLeadStatus;
+  accountId?: string;
+  stakeholderId?: string;
+  opportunityId?: string;
+  assignedTo?: string;
+  errorMessage?: string;
+  receivedAt: string;
+  convertedAt?: string;
+}
+export interface SalesReport {
+  id: string;
+  opportunityId: string;
+  accountId: string;
+  sellerId: string;
+  closedBy: string;
+  closedAt: string;
+  initialFee: number;
+  finalFee: number;
+  annualValue: number;
+  commissionRate: number;
+  commissionBase: number;
+  commissionAmount: number;
+  commissionStatus: CommissionStatus;
+  firstPaymentReceivedAt?: string;
+  commissionPaidAt?: string;
+  contractReference: string;
+  notes?: string;
+  createdAt: string;
+}
+export interface AssignmentHistory {
+  id: string;
+  opportunityId: string;
+  previousOwnerId?: string;
+  newOwnerId: string;
+  changedBy: string;
+  changeReason: string;
+  note?: string;
+  changedAt: string;
+}
+export interface SpeechUsage {
+  id: string;
+  speechId: string;
+  opportunityId: string;
+  stakeholderId?: string;
+  stage: OpportunityStage;
+  userId: string;
+  channel: SpeechChannel;
+  outcome: SpeechOutcome;
+  notes?: string;
+  nextAction: string;
+  nextActionAt: string;
+  usedAt: string;
+}
+export interface ArmAgent {
+  id: string;
+  name: string;
+  slug: string;
+  kind: ArmAgentKind;
+  roleKey: string;
+  description: string;
+  status: ArmAgentStatus;
+  autonomyLevel: ArmAutonomyLevel;
+  riskLevel: "bajo" | "medio" | "alto";
+  requiresHumanApproval: boolean;
+  capabilities: string[];
+  allowedChannels: string[];
+  systemInstructions?: string;
+  ownerId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface ArmAgentAssignment {
+  id: string;
+  agentId: string;
+  opportunityId: string;
+  relationshipRole: "principal" | "apoyo" | "revision" | "escalamiento";
+  status: "activa" | "pausada" | "completada";
+  notes?: string;
+  assignedBy: string;
+  assignedAt: string;
+  updatedAt: string;
+}
+export interface ArmInteraction {
+  id: string;
+  agentId: string;
+  opportunityId?: string;
+  stakeholderId?: string;
+  initiatedBy: string;
+  interactionType: string;
+  inputSummary: string;
+  outputSummary?: string;
+  decisionStatus: ArmDecisionStatus;
+  confidenceScore?: number;
+  requiresApproval: boolean;
+  approvedBy?: string;
+  approvedAt?: string;
+  outcome?: string;
+  createdAt: string;
+  updatedAt: string;
+}
