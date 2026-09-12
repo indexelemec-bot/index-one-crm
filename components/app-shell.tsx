@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgeDollarSign, Bot, BookOpenCheck, Building2, CheckSquare2, ChevronDown, FileSignature, Gauge, KanbanSquare, LogOut, Menu, MessageSquareText, Plus, ScrollText, Settings, UserRoundCog, X } from "lucide-react";
+import { BadgeDollarSign, Bot, BookOpenCheck, Building2, CheckSquare2, ChevronDown, FileSignature, Gauge, KanbanSquare, ListChecks, LogOut, Menu, MessageSquareText, Plus, ScrollText, Settings, UserRoundCog, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { roleLabels } from "@/lib/constants";
 import { useCrm } from "@/components/crm-provider";
@@ -21,6 +21,7 @@ const nav = [
   { href: "/academia", label: "Academia B2B", icon: BookOpenCheck },
   { href: "/agentes", label: "ARM · Agentes", icon: Bot },
   { href: "/usuarios", label: "Usuarios", icon: UserRoundCog }
+  ,{ href: "/referencias", label: "Referencias comerciales", icon: ListChecks }
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -90,11 +91,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const fullName = currentUser?.fullName?.trim() || "Usuario INDEX ONE";
   const initials = fullName.split(/\s+/).filter(Boolean).map((name) => name[0] ?? "").slice(0, 2).join("").toUpperCase() || "IO";
   const roleLabel = currentUser?.role ? roleLabels[currentUser.role] ?? "Usuario" : "Usuario";
+  const visibleNav = nav.filter((item) => item.href !== "/referencias" || ["superadmin", "gerencia_comercial", "administracion"].includes(currentUser.role));
 
   return <div className="shell">
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
       <div className="brand"><span className="brand-mark">⌂</span><span>INDEX <b>ONE</b><small>CRM CONDOMINIAL</small></span><button className="icon-button mobile-only" onClick={() => setOpen(false)} aria-label="Cerrar menú"><X size={20}/></button></div>
-      <nav className="nav" aria-label="Navegación principal">{nav.map(({ href, label, icon: Icon }) => <Link href={href} onClick={() => setOpen(false)} className={pathname.startsWith(href) ? "active" : ""} key={href}><Icon size={19}/><span>{label}</span></Link>)}</nav>
+      <nav className="nav" aria-label="Navegación principal">{visibleNav.map(({ href, label, icon: Icon }) => <Link href={href} onClick={() => setOpen(false)} className={pathname.startsWith(href) ? "active" : ""} key={href}><Icon size={19}/><span>{label}</span></Link>)}</nav>
       <div className="sidebar-footer">
         {!isSupabaseConfigured&&<button className="nav-plain" onClick={resetDemo}><Settings size={18}/> Restablecer demo</button>}
         {isSupabaseConfigured&&<button className="nav-plain" onClick={signOut}><LogOut size={18}/> Cerrar sesión</button>}

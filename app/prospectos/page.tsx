@@ -8,30 +8,419 @@ import { accountTypeLabels, formatCurrency } from "@/lib/constants";
 import { calculateOpportunityScore } from "@/lib/opportunity-score";
 import { matchesProspectSearch } from "@/lib/prospect-search";
 import { accountSchema } from "@/lib/validation";
-import type { AccountType } from "@/types/domain";
+import type { AccountType, ProjectType } from "@/types/domain";
 
 export default function ProspectosPage() {
-  const { accounts, opportunities, stakeholders, proposals, tasks, addProspect, currentUser } = useCrm();
-  const [open,setOpen]=useState(false); const [query,setQuery]=useState(""); const [type,setType]=useState("todos"); const [status,setStatus]=useState("activos"); const [errors,setErrors]=useState<Record<string,string>>({});
-  useEffect(()=>{if(new URLSearchParams(window.location.search).get("nuevo")) setOpen(true)},[]);
-  const rows=useMemo(()=>accounts.filter((account)=>{
-    const opportunity=opportunities.find((item)=>item.accountId===account.id);
-    const contactNames=stakeholders.filter((item)=>item.accountId===account.id).map((item)=>item.fullName);
-    const isDiscarded=opportunity?.stage==="perdida";
-    const isConverted=opportunity?.stage==="contrato_transicion"||opportunity?.stage==="cliente_activo";
-    const matchesStatus=status==="todos"
-      ? !isConverted
-      : status==="descartados"
-        ? isDiscarded
-        : !isDiscarded&&!isConverted;
-    return matchesProspectSearch(account.name,contactNames,query)&&(type==="todos"||account.accountType===type)&&matchesStatus;
-  }),[accounts,opportunities,stakeholders,query,type,status]);
-  function submit(e:React.FormEvent<HTMLFormElement>){e.preventDefault();const form=new FormData(e.currentTarget);const values=Object.fromEntries(form);const parsed=accountSchema.safeParse(values);if(!parsed.success){setErrors(Object.fromEntries(parsed.error.issues.map((i)=>[String(i.path[0]),i.message])));return}const now=Date.now().toString();const accountId=`a${now}`;const opportunityId=`o${now}`;addProspect({account:{id:accountId,name:parsed.data.name,accountType:parsed.data.accountType as AccountType,address:String(values.address||""),sector:parsed.data.sector,city:"Santo Domingo",units:parsed.data.units,towers:Number(values.towers||1),profile:String(values.profile||"familiar"),ownerId:currentUser.id,source:String(values.source||"Directo"),createdAt:new Date().toISOString()},stakeholder:{id:`s${now}`,accountId,fullName:parsed.data.stakeholderName,role:"presidente",phone:String(values.phone||""),email:parsed.data.stakeholderEmail,influence:5,position:"unknown",isDecisionMaker:true},opportunity:{id:opportunityId,accountId,stage:"prospecto_identificado",primaryProblem:parsed.data.primaryProblem,impact:"Pendiente de diagnóstico",proposedSolution:"Pendiente de diagnóstico",monthlyFee:0,probability:15,nextAction:parsed.data.nextAction,nextActionAt:new Date(parsed.data.nextActionAt).toISOString(),ownerId:currentUser.id,updatedAt:new Date().toISOString()}});setOpen(false);setErrors({});}
-  return <><PageHeader eyebrow="Cuentas B2B" title="Prospectos y cuentas" description="Gestiona únicamente prospectos en gestión comercial y descartados. Los clientes que pasan a contrato o cliente activo salen automáticamente de esta lista sin perder su historial."><button className="button button-primary" onClick={()=>setOpen(true)}><Plus size={18}/> Registrar prospecto</button></PageHeader>
-    <div className="toolbar"><label className="search"><Search size={18}/><input placeholder="Buscar por condominio o nombre del cliente…" value={query} onChange={(e)=>setQuery(e.target.value)}/></label><select className="filter-select" value={status} onChange={(e)=>setStatus(e.target.value)}><option value="activos">Prospectos activos</option><option value="descartados">Prospectos descartados</option><option value="todos">Todos los prospectos</option></select><select className="filter-select" value={type} onChange={(e)=>setType(e.target.value)}><option value="todos">Todos los segmentos</option>{Object.entries(accountTypeLabels).map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></div>
-    <div className="card table-wrap"><table className="table"><thead><tr><th>Cliente potencial</th><th>Segmento</th><th>Unidades</th><th>Necesidad principal</th><th>Etapa</th><th>Probabilidad</th><th>{status==="descartados"?"Próximo seguimiento":"Valor mensual"}</th></tr></thead><tbody>{rows.map((account)=>{const opportunity=opportunities.find((o)=>o.accountId===account.id);const score=opportunity?calculateOpportunityScore(opportunity,stakeholders,proposals,tasks).score:0;return <tr key={account.id}><td><Link className="account-name" href={`/prospectos/${account.id}`}><span className="account-icon"><Building2 size={18}/></span><span><strong>{account.name}</strong><small>{account.sector} · {account.source}</small></span></Link></td><td>{accountTypeLabels[account.accountType]}</td><td>{account.units}</td><td>{opportunity?.primaryProblem}</td><td>{opportunity&&<StagePill stage={opportunity.stage}/>}</td><td><b>{opportunity?.stage==="perdida"?0:score}%</b><div className="progress"><span style={{width:`${opportunity?.stage==="perdida"?0:score}%`}}/></div></td><td className="amount">{opportunity?.stage==="perdida"?(opportunity.nextFollowupAt?new Date(opportunity.nextFollowupAt).toLocaleDateString("es-DO",{dateStyle:"medium"}):"Sin seguimiento") : formatCurrency(opportunity?.monthlyFee??0)}</td></tr>})}</tbody></table></div>
-    {open&&<Modal title="Registrar prospecto B2B" description="Crea la cuenta, el decisor inicial y la primera próxima acción." onClose={()=>setOpen(false)} wide><form onSubmit={submit}><div className="form-grid"><Field name="name" label="Nombre del condominio o proyecto" error={errors.name}/><label className="field"><span>Tipo de cuenta</span><select name="accountType" defaultValue="condominio_existente">{Object.entries(accountTypeLabels).map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label><Field name="sector" label="Sector" error={errors.sector}/><Field name="address" label="Dirección"/><Field name="units" type="number" label="Cantidad de unidades" error={errors.units}/><Field name="towers" type="number" label="Cantidad de torres" defaultValue="1"/><label className="field"><span>Perfil</span><select name="profile"><option value="familiar">Familiar</option><option value="premium">Premium</option><option value="corporativo">Corporativo</option></select></label><Field name="source" label="Fuente del prospecto" defaultValue="Referido"/><Field name="stakeholderName" label="Contacto / decisor principal" error={errors.stakeholderName}/><Field name="stakeholderEmail" type="email" label="Correo del contacto" error={errors.stakeholderEmail}/><Field name="phone" label="Teléfono / WhatsApp"/><label className="field field-wide"><span>Necesidad principal</span><textarea name="primaryProblem" placeholder="¿Qué problema desea resolver el condominio?"/>{errors.primaryProblem&&<small className="field-error">{errors.primaryProblem}</small>}</label><Field name="nextAction" label="Próxima acción obligatoria" error={errors.nextAction}/><Field name="nextActionAt" type="datetime-local" label="Fecha y hora" error={errors.nextActionAt}/></div><div className="form-actions"><button type="button" className="button" onClick={()=>setOpen(false)}>Cancelar</button><button className="button button-primary">Crear prospecto</button></div></form></Modal>}
-  </>;
+  const {
+    accounts,
+    opportunities,
+    stakeholders,
+    proposals,
+    tasks,
+    addProspect,
+    currentUser,
+  } = useCrm();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [type, setType] = useState("todos");
+  const [status, setStatus] = useState("activos");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [projectType, setProjectType] = useState<ProjectType>("residencial");
+  const [residentialSubtype, setResidentialSubtype] = useState("apartamento");
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("nuevo")) setOpen(true);
+  }, []);
+  const rows = useMemo(
+    () =>
+      accounts.filter((account) => {
+        const opportunity = opportunities.find(
+          (item) => item.accountId === account.id,
+        );
+        const contactNames = stakeholders
+          .filter((item) => item.accountId === account.id)
+          .map((item) => item.fullName);
+        const isDiscarded = opportunity?.stage === "perdida";
+        const isConverted =
+          opportunity?.stage === "contrato_transicion" ||
+          opportunity?.stage === "cliente_activo";
+        const matchesStatus =
+          status === "todos"
+            ? !isConverted
+            : status === "descartados"
+              ? isDiscarded
+              : !isDiscarded && !isConverted;
+        return (
+          matchesProspectSearch(account.name, contactNames, query) &&
+          (type === "todos" || account.projectType === type) &&
+          matchesStatus
+        );
+      }),
+    [accounts, opportunities, stakeholders, query, type, status],
+  );
+  function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const values = Object.fromEntries(new FormData(e.currentTarget));
+    const parsed = accountSchema.safeParse(values);
+    if (!parsed.success) {
+      setErrors(
+        Object.fromEntries(
+          parsed.error.issues.map((i) => [String(i.path[0]), i.message]),
+        ),
+      );
+      return;
+    }
+    const now = Date.now().toString();
+    const accountId = `a${now}`;
+    const opportunityId = `o${now}`;
+    addProspect({
+      account: {
+        id: accountId,
+        name: parsed.data.name,
+        accountType: parsed.data.accountType as AccountType,
+        projectType: parsed.data.projectType,
+        residentialSubtype:
+          parsed.data.projectType === "residencial"
+            ? parsed.data.residentialSubtype
+            : undefined,
+        customUnitType:
+          parsed.data.residentialSubtype === "otros"
+            ? parsed.data.customUnitType
+            : undefined,
+        address: String(values.address || ""),
+        sector: parsed.data.sector,
+        city: "Santo Domingo",
+        units: parsed.data.units,
+        towers: Number(values.towers || 1),
+        profile: String(values.profile || "familiar"),
+        ownerId: currentUser.id,
+        source: String(values.source || "Directo"),
+        createdAt: new Date().toISOString(),
+      },
+      stakeholder: {
+        id: `s${now}`,
+        accountId,
+        fullName: parsed.data.stakeholderName,
+        role: "presidente",
+        phone: String(values.phone || ""),
+        email: parsed.data.stakeholderEmail,
+        influence: 5,
+        position: "unknown",
+        isDecisionMaker: true,
+      },
+      opportunity: {
+        id: opportunityId,
+        accountId,
+        stage: "prospecto_identificado",
+        primaryProblem: parsed.data.primaryProblem,
+        impact: "Pendiente de diagnóstico",
+        proposedSolution: "Pendiente de diagnóstico",
+        monthlyFee: 0,
+        probability: 15,
+        nextAction: parsed.data.nextAction,
+        nextActionAt: new Date(parsed.data.nextActionAt).toISOString(),
+        ownerId: currentUser.id,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+    setOpen(false);
+    setErrors({});
+  }
+  const unitLabel = (account: (typeof accounts)[number]) =>
+    account.projectType === "comercial"
+      ? "locales"
+      : account.residentialSubtype === "otros"
+        ? account.customUnitType || "unidades"
+        : account.residentialSubtype === "casa"
+          ? "casas"
+          : "apartamentos";
+  return (
+    <>
+      <PageHeader
+        eyebrow="Cuentas B2B"
+        title="Prospectos y cuentas"
+        description="Gestiona proyectos comerciales y residenciales con su clasificación y unidad operativa correctas."
+      >
+        <button className="button button-primary" onClick={() => setOpen(true)}>
+          <Plus size={18} /> Registrar prospecto
+        </button>
+      </PageHeader>
+      <div className="toolbar">
+        <label className="search">
+          <Search size={18} />
+          <input
+            placeholder="Buscar por proyecto o cliente…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </label>
+        <select
+          className="filter-select"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+        >
+          <option value="activos">Prospectos activos</option>
+          <option value="descartados">Prospectos descartados</option>
+          <option value="todos">Todos los prospectos</option>
+        </select>
+        <select
+          className="filter-select"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        >
+          <option value="todos">Comercial y residencial</option>
+          <option value="comercial">Comercial</option>
+          <option value="residencial">Residencial</option>
+        </select>
+      </div>
+      <div className="card table-wrap">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Cliente potencial</th>
+              <th>Tipo de proyecto</th>
+              <th>Unidades / locales</th>
+              <th>Necesidad principal</th>
+              <th>Etapa</th>
+              <th>Probabilidad</th>
+              <th>
+                {status === "descartados"
+                  ? "Próximo seguimiento"
+                  : "Valor mensual"}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((account) => {
+              const opportunity = opportunities.find(
+                (o) => o.accountId === account.id,
+              );
+              const score = opportunity
+                ? calculateOpportunityScore(
+                    opportunity,
+                    stakeholders,
+                    proposals,
+                    tasks,
+                  ).score
+                : 0;
+              return (
+                <tr key={account.id}>
+                  <td>
+                    <Link
+                      className="account-name"
+                      href={`/prospectos/${account.id}`}
+                    >
+                      <span className="account-icon">
+                        <Building2 size={18} />
+                      </span>
+                      <span>
+                        <strong>{account.name}</strong>
+                        <small>
+                          {account.sector} · {account.source}
+                        </small>
+                      </span>
+                    </Link>
+                  </td>
+                  <td>
+                    <b style={{ textTransform: "capitalize" }}>
+                      {account.projectType}
+                    </b>
+                    <small>{accountTypeLabels[account.accountType]}</small>
+                  </td>
+                  <td>
+                    {account.units} {unitLabel(account)}
+                  </td>
+                  <td>{opportunity?.primaryProblem}</td>
+                  <td>
+                    {opportunity && <StagePill stage={opportunity.stage} />}
+                  </td>
+                  <td>
+                    <b>{opportunity?.stage === "perdida" ? 0 : score}%</b>
+                    <div className="progress">
+                      <span
+                        style={{
+                          width: `${opportunity?.stage === "perdida" ? 0 : score}%`,
+                        }}
+                      />
+                    </div>
+                  </td>
+                  <td className="amount">
+                    {opportunity?.stage === "perdida"
+                      ? opportunity.nextFollowupAt
+                        ? new Date(
+                            opportunity.nextFollowupAt,
+                          ).toLocaleDateString("es-DO", { dateStyle: "medium" })
+                        : "Sin seguimiento"
+                      : formatCurrency(opportunity?.monthlyFee ?? 0)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {open && (
+        <Modal
+          title="Registrar prospecto B2B"
+          description="Clasifica el proyecto, crea el decisor inicial y define la próxima acción."
+          onClose={() => setOpen(false)}
+          wide
+        >
+          <form onSubmit={submit}>
+            <div className="form-grid">
+              <Field
+                name="name"
+                label="Nombre del proyecto"
+                error={errors.name}
+              />
+              <label className="field">
+                <span>Tipo de proyecto</span>
+                <select
+                  name="projectType"
+                  value={projectType}
+                  onChange={(e) =>
+                    setProjectType(e.target.value as ProjectType)
+                  }
+                >
+                  <option value="residencial">Residencial</option>
+                  <option value="comercial">Comercial</option>
+                </select>
+              </label>
+              {projectType === "residencial" && (
+                <label className="field">
+                  <span>Subcategoría residencial</span>
+                  <select
+                    name="residentialSubtype"
+                    value={residentialSubtype}
+                    onChange={(e) => setResidentialSubtype(e.target.value)}
+                  >
+                    <option value="apartamento">Apartamentos</option>
+                    <option value="casa">Casas</option>
+                    <option value="otros">Otros</option>
+                  </select>
+                  {errors.residentialSubtype && (
+                    <small className="field-error">
+                      {errors.residentialSubtype}
+                    </small>
+                  )}
+                </label>
+              )}
+              {projectType === "residencial" &&
+                residentialSubtype === "otros" && (
+                  <Field
+                    name="customUnitType"
+                    label="Nombre de las unidades"
+                    error={errors.customUnitType}
+                  />
+                )}
+              <label className="field">
+                <span>Segmento</span>
+                <select name="accountType" defaultValue="condominio_existente">
+                  {Object.entries(accountTypeLabels).map(([v, l]) => (
+                    <option value={v} key={v}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Field name="sector" label="Sector" error={errors.sector} />
+              <Field name="address" label="Dirección" />
+              <Field
+                name="units"
+                type="number"
+                label={
+                  projectType === "comercial"
+                    ? "Cantidad de locales"
+                    : "Cantidad de unidades"
+                }
+                error={errors.units}
+              />
+              <Field
+                name="towers"
+                type="number"
+                label="Cantidad de torres/edificios"
+                defaultValue="1"
+              />
+              <label className="field">
+                <span>Perfil</span>
+                <select name="profile">
+                  <option value="familiar">Familiar</option>
+                  <option value="premium">Premium</option>
+                  <option value="corporativo">Corporativo</option>
+                </select>
+              </label>
+              <Field
+                name="source"
+                label="Fuente del prospecto"
+                defaultValue="Referido"
+              />
+              <Field
+                name="stakeholderName"
+                label="Contacto / decisor principal"
+                error={errors.stakeholderName}
+              />
+              <Field
+                name="stakeholderEmail"
+                type="email"
+                label="Correo del contacto"
+                error={errors.stakeholderEmail}
+              />
+              <Field name="phone" label="Teléfono / WhatsApp" />
+              <label className="field field-wide">
+                <span>Necesidad principal</span>
+                <textarea
+                  name="primaryProblem"
+                  placeholder="¿Qué problema desea resolver?"
+                />
+                {errors.primaryProblem && (
+                  <small className="field-error">{errors.primaryProblem}</small>
+                )}
+              </label>
+              <Field
+                name="nextAction"
+                label="Próxima acción obligatoria"
+                error={errors.nextAction}
+              />
+              <Field
+                name="nextActionAt"
+                type="datetime-local"
+                label="Fecha y hora"
+                error={errors.nextActionAt}
+              />
+            </div>
+            <div className="form-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => setOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button className="button button-primary">Crear prospecto</button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
 }
-
-function Field({name,label,type="text",error,defaultValue}:{name:string;label:string;type?:string;error?:string;defaultValue?:string}){return <label className="field"><span>{label}</span><input name={name} type={type} defaultValue={defaultValue}/>{error&&<small className="field-error">{error}</small>}</label>}
+function Field({
+  name,
+  label,
+  type = "text",
+  error,
+  defaultValue,
+}: {
+  name: string;
+  label: string;
+  type?: string;
+  error?: string;
+  defaultValue?: string;
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <input name={name} type={type} defaultValue={defaultValue} />
+      {error && <small className="field-error">{error}</small>}
+    </label>
+  );
+}

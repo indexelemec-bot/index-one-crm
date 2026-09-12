@@ -7,11 +7,11 @@ import { CommercialTimeline } from "./commercial-timeline";
 
 export default function ProspectLayout({ children }: { children: ReactNode }) {
   const { id } = useParams<{ id: string }>();
-  const { opportunities } = useCrm();
+  const { opportunities, dataVersion } = useCrm();
   const opportunity = opportunities.find((item) => item.accountId === id);
 
   return <>
     {children}
-    {opportunity?.id && <CommercialTimeline opportunityId={opportunity.id} />}
+    {opportunity?.id && <CommercialTimeline opportunityId={opportunity.id} dataVersion={dataVersion} />}
   </>;
 }

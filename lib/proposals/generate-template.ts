@@ -1,7 +1,7 @@
 import JSZip from "jszip";
-import type { CommercialReference } from "@/types/domain";
+import type { CommercialReference, ProjectType, ResidentialSubtype } from "@/types/domain";
 
-export interface ProposalTemplateData { clientName: string; issueDate: string; monthlyFee: number; references: CommercialReference[]; }
+export interface ProposalTemplateData { clientName: string; issueDate: string; monthlyFee: number; references: CommercialReference[]; projectType?: ProjectType; residentialSubtype?: ResidentialSubtype; customUnitType?: string; }
 
 const decodeXml = (value: string) => value.replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'");
 const encodeXml = (value: string) => value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
@@ -28,6 +28,8 @@ export async function generateProposalDocx(template:ArrayBuffer|Uint8Array,data:
   if(data.references.length!==3)throw new Error("La plantilla requiere exactamente tres referencias comerciales.");
   const zip=await JSZip.loadAsync(template);const file=zip.file("word/document.xml");if(!file)throw new Error("La plantilla corporativa no contiene word/document.xml");let xml=await file.async("string");
   const replacements:[string,string][]=[
+    ["DE EDIFICIOS Y CONDOMINIOS",data.projectType==="comercial"?"DE PROYECTOS COMERCIALES":`RESIDENCIAL · ${data.residentialSubtype==="otros"?data.customUnitType?.toUpperCase():data.residentialSubtype==="casa"?"CASAS":"APARTAMENTOS"}`],
+    ["Unidades",data.projectType==="comercial"?"Locales":data.residentialSubtype==="casa"?"Casas":data.residentialSubtype==="otros"?(data.customUnitType||"Unidades"):"Apartamentos"],
     ["Condominio Residencial Residencial Randy A, B, C",data.clientName],
     ["Condominio Residencial Randy A, B, C",data.clientName],
     ["29 de julio de 2026",spanishDate(data.issueDate)],

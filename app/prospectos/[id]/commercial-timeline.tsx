@@ -1,10 +1,10 @@
 "use client";
 
-import { CalendarClock, CheckCircle2, ClipboardList, FileSignature, FileText, History, Mail, MessageCircle, RefreshCw, UserRoundCog } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { CalendarClock, CheckCircle2, ClipboardList, FileSignature, FileText, History, Mail, MessageCircle, MessageSquareText, RefreshCw, UserRoundCog } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/components/crm-provider";
 
-type TimelineKind = "communication" | "activity" | "task" | "proposal" | "assignment" | "scheduled" | "contract";
+type TimelineKind = "communication" | "internal_message" | "activity" | "task" | "proposal" | "assignment" | "scheduled" | "contract";
 type TimelineItem = { kind: TimelineKind; id: string; at: string; data: Record<string, unknown> };
 type TimelineResponse = {
   timeline: TimelineItem[];
@@ -14,6 +14,7 @@ type TimelineResponse = {
 
 const kindLabels: Record<TimelineKind, string> = {
   communication: "Comunicación",
+  internal_message: "Nota interna",
   activity: "Actividad",
   task: "Tarea",
   proposal: "Propuesta",
@@ -25,28 +26,38 @@ const kindLabels: Record<TimelineKind, string> = {
 function text(value: unknown) { return typeof value === "string" ? value : ""; }
 function numberValue(value: unknown) { return typeof value === "number" ? value : Number(value ?? 0); }
 
-export function CommercialTimeline({ opportunityId }: { opportunityId: string }) {
+export function CommercialTimeline({ opportunityId, dataVersion }: { opportunityId: string; dataVersion: number }) {
   const { stakeholders, users } = useCrm();
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [meta, setMeta] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | TimelineKind>("all");
+  const requestSequence = useRef(0);
 
   const load = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     setLoading(true); setError("");
-    const response = await fetch(`/api/communications/timeline?opportunityId=${encodeURIComponent(opportunityId)}`, { cache: "no-store" });
-    const result = await response.json().catch(() => ({})) as TimelineResponse;
-    if (!response.ok) { setError(result.error ?? "No fue posible cargar el historial comercial."); setLoading(false); return; }
-    setItems(result.timeline ?? []); setMeta(result.meta ?? {}); setLoading(false);
+    try {
+      const response = await fetch(`/api/communications/timeline?opportunityId=${encodeURIComponent(opportunityId)}`, { cache: "no-store" });
+      const result = await response.json().catch(() => ({})) as TimelineResponse;
+      if (sequence !== requestSequence.current) return;
+      if (!response.ok) { setError(result.error ?? "No fue posible cargar el historial comercial."); return; }
+      setItems(result.timeline ?? []); setMeta(result.meta ?? {});
+    } catch {
+      if (sequence === requestSequence.current) setError("No fue posible conectar con el historial comercial.");
+    } finally {
+      if (sequence === requestSequence.current) setLoading(false);
+    }
   }, [opportunityId]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void load(); }, [load, dataVersion]);
 
   const visible = useMemo(() => filter === "all" ? items : items.filter((item) => item.kind === filter), [items, filter]);
 
   function icon(kind: TimelineKind) {
     if (kind === "communication") return <MessageCircle size={18}/>;
+    if (kind === "internal_message") return <MessageSquareText size={18}/>;
     if (kind === "activity") return <CheckCircle2 size={18}/>;
     if (kind === "task") return <ClipboardList size={18}/>;
     if (kind === "proposal") return <FileText size={18}/>;
@@ -62,6 +73,7 @@ export function CommercialTimeline({ opportunityId }: { opportunityId: string })
       const direction = text(data.direction) === "inbound" ? "recibido" : "enviado";
       return `${channel === "email" ? "Correo" : "WhatsApp"} ${direction}`;
     }
+    if (item.kind === "internal_message") return "Nota interna del equipo";
     if (item.kind === "activity") return text(data.activity_type).replaceAll("_", " ") || "Actividad comercial";
     if (item.kind === "task") return text(data.title) || "Tarea comercial";
     if (item.kind === "proposal") return `Propuesta v${numberValue(data.version) || 1} · ${text(data.status) || "borrador"}`;
@@ -83,13 +95,18 @@ export function CommercialTimeline({ opportunityId }: { opportunityId: string })
       const transcript = text(data.transcription_text);
       return <><p>{subject && <b>{subject} · </b>}{body}</p><small>{contact?.fullName ? `${contact.fullName} · ` : ""}{agent ? `Agente: ${agent} · ` : ""}Estado: {text(data.status) || "registrado"}</small>{text(data.media_name) && <small>Adjunto: {text(data.media_name)}</small>}{transcript && <small>Transcripción: {transcript}</small>}</>;
     }
+    if (item.kind === "internal_message") {
+      const sender = users.find((entry) => entry.id === text(data.sender_id));
+      return <><p>{text(data.body_text)}</p><small>Solo equipo{sender?.fullName ? ` · ${sender.fullName}` : ""}{text(data.attachment_name) ? ` · Adjunto: ${text(data.attachment_name)}` : ""}</small></>;
+    }
     if (item.kind === "activity") return <><p>{text(data.outcome) || text(data.next_action) || "Actividad registrada en el expediente."}</p>{text(data.due_at) && <small>Próxima acción: {new Date(text(data.due_at)).toLocaleString("es-DO")}</small>}</>;
     if (item.kind === "task") return <><p>{text(data.outcome) || `Prioridad ${text(data.priority) || "media"} · ${text(data.status) || "pendiente"}`}</p><small>Vence: {text(data.due_at) ? new Date(text(data.due_at)).toLocaleString("es-DO") : "sin fecha"}</small></>;
     if (item.kind === "proposal") return <><p>Honorarios: {new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP", maximumFractionDigits: 0 }).format(numberValue(data.monthly_fee))}</p><small>Cliente: {text(data.client_name)} · Emitida: {text(data.issue_date) || "—"}</small></>;
     if (item.kind === "assignment") {
       const previous = users.find((entry) => entry.id === text(data.previous_owner_id));
       const next = users.find((entry) => entry.id === text(data.new_owner_id));
-      return <><p>{previous?.fullName ?? "Sin responsable previo"} → {next?.fullName ?? "Nuevo responsable"}</p><small>{text(data.change_reason) || "Cambio de responsable comercial"}</small></>;
+      const actor = users.find((entry) => entry.id === text(data.changed_by));
+      return <><p>{previous?.fullName ?? "Sin responsable previo"} → {next?.fullName ?? "Nuevo responsable"}</p><small>Motivo: {text(data.change_reason) || "Cambio de responsable comercial"}{actor?.fullName ? ` · Registrado por ${actor.fullName}` : ""}</small>{text(data.note) && <small>Nota: {text(data.note)}</small>}</>;
     }
     if (item.kind === "scheduled") return <><p>{text(data.body_text)}</p><small>Programado para: {text(data.scheduled_for) ? new Date(text(data.scheduled_for)).toLocaleString("es-DO") : "—"}{numberValue(data.recurrence_months) ? ` · Cada ${numberValue(data.recurrence_months)} meses` : ""}</small>{text(data.last_error) && <small>Error: {text(data.last_error)}</small>}</>;
     return <><p>{text(data.client_legal_name) || "Contrato comercial"}</p><small>Versión {numberValue(data.current_version)}{text(data.signature_date) ? ` · Firmado ${new Date(text(data.signature_date)).toLocaleDateString("es-DO")}` : ""}</small></>;
@@ -103,8 +120,8 @@ export function CommercialTimeline({ opportunityId }: { opportunityId: string })
 
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
       <button className={`button ${filter === "all" ? "button-primary" : ""}`} onClick={() => setFilter("all")}>Todo ({items.length})</button>
-      {(["communication","task","proposal","scheduled","assignment","activity","contract"] as TimelineKind[]).map((kind) => {
-        const count = kind === "communication" ? (meta.communications ?? items.filter((item) => item.kind === kind).length) : items.filter((item) => item.kind === kind).length;
+      {(["communication","internal_message","task","proposal","scheduled","assignment","activity","contract"] as TimelineKind[]).map((kind) => {
+        const count = kind === "communication" ? (meta.communications ?? items.filter((item) => item.kind === kind).length) : kind === "internal_message" ? (meta.internalMessages ?? items.filter((item) => item.kind === kind).length) : items.filter((item) => item.kind === kind).length;
         return <button key={kind} className={`button ${filter === kind ? "button-primary" : ""}`} onClick={() => setFilter(kind)}>{kindLabels[kind]} ({count})</button>;
       })}
     </div>

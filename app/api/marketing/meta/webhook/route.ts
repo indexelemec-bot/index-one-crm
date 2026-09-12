@@ -83,6 +83,11 @@ async function convertLead(admin: any, rowId: string, lead: any, sourceChannel: 
   const condominiumName = firstValue(fields, ["condominium_name", "nombre_del_condominio", "residencial", "torre", "nombre_de_la_torre"]);
   const sector = firstValue(fields, ["sector", "ubicacion", "zona"]);
   const units = parseUnits(firstValue(fields, ["units", "apartamentos", "cantidad_de_apartamentos", "cantidad_de_unidades"]));
+  const projectTypeRaw = normalizeKey(firstValue(fields, ["project_type", "tipo_de_proyecto", "clasificacion"]));
+  const projectType = projectTypeRaw.includes("comercial") ? "comercial" : "residencial";
+  const subtypeRaw = normalizeKey(firstValue(fields, ["residential_subtype", "subcategoria_residencial", "tipo_de_vivienda"]));
+  const residentialSubtype = projectType === "residencial" ? (subtypeRaw.includes("casa") ? "casa" : subtypeRaw.includes("otro") ? "otros" : "apartamento") : null;
+  const customUnitType = residentialSubtype === "otros" ? firstValue(fields, ["custom_unit_type", "otro_tipo_de_unidad"]) || "unidades residenciales" : null;
   const currentAdminRaw = firstValue(fields, ["current_admin", "tienen_administracion", "administracion_actual"]);
   const primaryProblem = firstValue(fields, ["primary_problem", "principal_problema", "problema_principal", "necesidad"]);
   const stakeholderRole = firstValue(fields, ["stakeholder_role", "cargo", "relacion_con_el_condominio", "posicion"]);
@@ -98,6 +103,9 @@ async function convertLead(admin: any, rowId: string, lead: any, sourceChannel: 
     condominium_name: condominiumName || null,
     sector: sector || null,
     units,
+    project_type: projectType,
+    residential_subtype: residentialSubtype,
+    custom_unit_type: customUnitType,
     current_admin: parseBoolean(currentAdminRaw),
     primary_problem: primaryProblem || null,
     stakeholder_role: stakeholderRole || null,
@@ -126,6 +134,9 @@ async function convertLead(admin: any, rowId: string, lead: any, sourceChannel: 
     const created = await admin.from("accounts").insert({
       name: condominiumName,
       account_type: "condominio_existente",
+      project_type: projectType,
+      residential_subtype: residentialSubtype,
+      custom_unit_type: customUnitType,
       sector: sector || null,
       city: "Santo Domingo",
       units,

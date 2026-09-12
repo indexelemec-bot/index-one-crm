@@ -139,6 +139,11 @@ export async function POST(request: Request) {
       "Unidades"
     ])
   );
+  const projectTypeRaw = normalizeKey(firstValue(fields, ["Tipo de proyecto", "Proyecto comercial o residencial", "Clasificación"]));
+  const projectType = projectTypeRaw.includes("comercial") ? "comercial" : "residencial";
+  const subtypeRaw = normalizeKey(firstValue(fields, ["Subcategoría residencial", "Tipo de vivienda", "Tipo de unidad"]));
+  const residentialSubtype = projectType === "residencial" ? (subtypeRaw.includes("casa") ? "casa" : subtypeRaw.includes("otro") ? "otros" : "apartamento") : null;
+  const customUnitType = residentialSubtype === "otros" ? firstValue(fields, ["Otro tipo de unidad", "Nombre de las unidades"]) || "unidades residenciales" : null;
   const primaryProblem = firstValue(fields, [
     "¿Porque desean contratar una empresa de administración de condominios? ",
     "¿Por qué desean contratar una empresa de administración?",
@@ -194,6 +199,9 @@ export async function POST(request: Request) {
         condominium_name: condominiumName,
         sector: location || null,
         units,
+        project_type: projectType,
+        residential_subtype: residentialSubtype,
+        custom_unit_type: customUnitType,
         primary_problem: primaryProblem || null,
         raw_payload: payload,
         status: "new",
@@ -224,6 +232,9 @@ export async function POST(request: Request) {
       .insert({
         name: condominiumName,
         account_type: "condominio_existente",
+        project_type: projectType,
+        residential_subtype: residentialSubtype,
+        custom_unit_type: customUnitType,
         address: location || null,
         sector: location || null,
         city: "Santo Domingo",
