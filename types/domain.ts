@@ -30,6 +30,7 @@ export type OpportunityStage =
   | "solucion_recomendada"
   | "presentacion"
   | "propuesta"
+  | "propuesta_enviada"
   | "negociacion"
   | "aprobacion"
   | "contrato_transicion"

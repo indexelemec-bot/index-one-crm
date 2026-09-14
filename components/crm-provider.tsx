@@ -19,6 +19,7 @@ type Store = {
   setCurrentUser: (user: UserProfile) => void; addProspect: (data: NewProspect) => void;
   updateAccount: (id: string, patch: Partial<Account>) => Promise<{ ok: boolean; error?: string }>;
   updateOpportunity: (id: string, patch: Partial<Opportunity>) => Promise<{ ok: boolean; error?: string }>; addTask: (task: Task) => Promise<boolean>;
+  moveOpportunityStage: (id: string, stage: Opportunity["stage"], note?: string) => Promise<{ ok: boolean; error?: string }>;
   completeTask: (id: string, outcome: string, nextTask?: Task) => void; addProposal: (proposal: Proposal) => void;
   toggleUser: (id: string) => void; resetDemo: () => void; inviteUser: (input: InviteUserInput) => Promise<{ ok: boolean; error?: string }>;
   assignOpportunity: (id: string, newOwnerId: string, reason: string, note?: string) => Promise<{ ok: boolean; error?: string }>; closeSale: (input: CloseSaleInput) => void;
@@ -207,6 +208,22 @@ export function CrmProvider({ children }: { children: React.ReactNode }) {
       if (!remote) { setDataVersion((version) => version + 1); return { ok: true }; }
       const { data: updated, error } = await createClient()!.from("opportunities").update(opportunityPatchToDb(patch)).eq("id", id).select("id").maybeSingle();
       if (error || !updated) { const failure = error ?? new Error("La oportunidad no está disponible para actualizarse."); recoverFrom(failure); return { ok: false, error: failure.message }; }
+      await loadRemote();
+      return { ok: true };
+    },
+    moveOpportunityStage: async (id, stage, note) => {
+      const target = opportunities.find((item) => item.id === id);
+      if (!target) return { ok: false, error: "Oportunidad no encontrada." };
+      if (target.stage === stage) return { ok: true };
+      const movedAt = new Date().toISOString();
+      setOpportunities((items) => items.map((item) => item.id === id ? { ...item, stage, updatedAt: movedAt } : item));
+      if (!remote) { setDataVersion((version) => version + 1); return { ok: true }; }
+      const { error } = await createClient()!.rpc("move_opportunity_stage", {
+        target_opportunity: id,
+        replacement_stage: stage,
+        stage_note: note?.trim() || null
+      });
+      if (error) { recoverFrom(error); return { ok: false, error: error.message }; }
       await loadRemote();
       return { ok: true };
     },
