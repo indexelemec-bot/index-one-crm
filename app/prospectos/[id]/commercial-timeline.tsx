@@ -3,8 +3,10 @@
 import { CalendarClock, CheckCircle2, ClipboardList, FileSignature, FileText, History, Mail, MessageCircle, MessageSquareText, RefreshCw, UserRoundCog } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/components/crm-provider";
+import { stageLabels } from "@/lib/constants";
+import type { OpportunityStage } from "@/types/domain";
 
-type TimelineKind = "communication" | "internal_message" | "activity" | "task" | "proposal" | "assignment" | "scheduled" | "contract";
+type TimelineKind = "communication" | "internal_message" | "activity" | "task" | "proposal" | "assignment" | "scheduled" | "contract" | "stage_change";
 type TimelineItem = { kind: TimelineKind; id: string; at: string; data: Record<string, unknown> };
 type TimelineResponse = {
   timeline: TimelineItem[];
@@ -20,7 +22,8 @@ const kindLabels: Record<TimelineKind, string> = {
   proposal: "Propuesta",
   assignment: "Asignación",
   scheduled: "Seguimiento programado",
-  contract: "Contrato"
+  contract: "Contrato",
+  stage_change: "Movimiento de etapa"
 };
 
 function text(value: unknown) { return typeof value === "string" ? value : ""; }
@@ -63,6 +66,7 @@ export function CommercialTimeline({ opportunityId, dataVersion }: { opportunity
     if (kind === "proposal") return <FileText size={18}/>;
     if (kind === "assignment") return <UserRoundCog size={18}/>;
     if (kind === "scheduled") return <CalendarClock size={18}/>;
+    if (kind === "stage_change") return <History size={18}/>;
     return <FileSignature size={18}/>;
   }
 
@@ -82,6 +86,11 @@ export function CommercialTimeline({ opportunityId, dataVersion }: { opportunity
       return `Asignación a ${user?.fullName ?? "vendedor"}`;
     }
     if (item.kind === "scheduled") return `${text(data.channel) === "email" ? "Correo" : "WhatsApp"} programado · ${text(data.status)}`;
+    if (item.kind === "stage_change") {
+      const previous = text(data.previous_stage) as OpportunityStage;
+      const next = text(data.new_stage) as OpportunityStage;
+      return previous ? `${stageLabels[previous] ?? previous} → ${stageLabels[next] ?? next}` : `Inicio en ${stageLabels[next] ?? next}`;
+    }
     return `Contrato · ${text(data.status) || "borrador"}`;
   }
 
@@ -109,6 +118,11 @@ export function CommercialTimeline({ opportunityId, dataVersion }: { opportunity
       return <><p>{previous?.fullName ?? "Sin responsable previo"} → {next?.fullName ?? "Nuevo responsable"}</p><small>Motivo: {text(data.change_reason) || "Cambio de responsable comercial"}{actor?.fullName ? ` · Registrado por ${actor.fullName}` : ""}</small>{text(data.note) && <small>Nota: {text(data.note)}</small>}</>;
     }
     if (item.kind === "scheduled") return <><p>{text(data.body_text)}</p><small>Programado para: {text(data.scheduled_for) ? new Date(text(data.scheduled_for)).toLocaleString("es-DO") : "—"}{numberValue(data.recurrence_months) ? ` · Cada ${numberValue(data.recurrence_months)} meses` : ""}</small>{text(data.last_error) && <small>Error: {text(data.last_error)}</small>}</>;
+    if (item.kind === "stage_change") {
+      const actor = users.find((entry) => entry.id === text(data.moved_by));
+      const duration = numberValue(data.previous_stage_duration_seconds);
+      return <><p>{text(data.change_note) || "Movimiento registrado automáticamente desde el proceso comercial."}</p><small>{actor?.fullName ? `Realizado por ${actor.fullName}` : "Registro inicial del sistema"}{duration ? ` · Permaneció ${Math.max(1, Math.round(duration / 86400))} día(s) en la etapa anterior` : ""}</small></>;
+    }
     return <><p>{text(data.client_legal_name) || "Contrato comercial"}</p><small>Versión {numberValue(data.current_version)}{text(data.signature_date) ? ` · Firmado ${new Date(text(data.signature_date)).toLocaleDateString("es-DO")}` : ""}</small></>;
   }
 
@@ -120,7 +134,7 @@ export function CommercialTimeline({ opportunityId, dataVersion }: { opportunity
 
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16 }}>
       <button className={`button ${filter === "all" ? "button-primary" : ""}`} onClick={() => setFilter("all")}>Todo ({items.length})</button>
-      {(["communication","internal_message","task","proposal","scheduled","assignment","activity","contract"] as TimelineKind[]).map((kind) => {
+      {(["communication","stage_change","internal_message","task","proposal","scheduled","assignment","activity","contract"] as TimelineKind[]).map((kind) => {
         const count = kind === "communication" ? (meta.communications ?? items.filter((item) => item.kind === kind).length) : kind === "internal_message" ? (meta.internalMessages ?? items.filter((item) => item.kind === kind).length) : items.filter((item) => item.kind === kind).length;
         return <button key={kind} className={`button ${filter === kind ? "button-primary" : ""}`} onClick={() => setFilter(kind)}>{kindLabels[kind]} ({count})</button>;
       })}

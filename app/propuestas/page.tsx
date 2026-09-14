@@ -12,7 +12,7 @@ import {
   Send,
   Sparkles,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCrm } from "@/components/crm-provider";
 import { ClientDocumentsPanel } from "@/components/client-documents-panel";
 import { Modal, PageHeader } from "@/components/ui";
@@ -64,6 +64,7 @@ export default function PropuestasPage() {
     references,
     addProposal,
     updateOpportunity,
+    moveOpportunityStage,
     refreshData,
     currentUser,
   } = useCrm();
@@ -86,6 +87,7 @@ export default function PropuestasPage() {
   const [deliveryBody, setDeliveryBody] = useState("");
   const [deliveryError, setDeliveryError] = useState("");
   const [delivering, setDelivering] = useState(false);
+  const seededFromQuery = useRef(false);
 
   const opportunity = opportunities.find((item) => item.id === opportunityId);
   const account = accounts.find((item) => item.id === opportunity?.accountId);
@@ -148,7 +150,9 @@ export default function PropuestasPage() {
   }
 
   useEffect(() => {
+    if (seededFromQuery.current || opportunities.length === 0) return;
     const incoming = new URLSearchParams(window.location.search).get("nueva");
+    seededFromQuery.current = true;
     if (incoming) {
       selectOpportunity(incoming);
       setOpen(true);
@@ -251,11 +255,10 @@ export default function PropuestasPage() {
         addProposal(savedProposal);
       }
 
-      updateOpportunity(opportunityId, {
-        monthlyFee: fee,
-        stage:
-          opportunity.stage === "propuesta" ? "negociacion" : opportunity.stage,
-      });
+      await updateOpportunity(opportunityId, { monthlyFee: fee });
+      if (["prospecto_identificado", "problema_detectado", "contacto_decisor", "diagnostico", "solucion_recomendada", "presentacion"].includes(opportunity.stage)) {
+        await moveOpportunityStage(opportunityId, "propuesta", `Propuesta v${savedProposal.version} generada`);
+      }
 
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");

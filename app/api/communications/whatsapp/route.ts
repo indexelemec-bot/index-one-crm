@@ -97,9 +97,9 @@ export async function POST(request: Request) {
     channel: "whatsapp", direction: "outbound", from_address: process.env.WHATSAPP_BUSINESS_DISPLAY_NUMBER || "WhatsApp del ejecutivo", to_address: stakeholder.phone,
     subject: `Propuesta v${delivery.proposal.version} — ${delivery.proposal.client_name}`, body_text: parsed.data.body,
     template_key: "propuesta", provider, provider_message_id: providerMessageId, attachment_format: delivery.proposal.file_format, status,
-    created_by: authData.user.id, sent_at: createdAt
+    created_by: authData.user.id, sent_at: realSendingEnabled ? createdAt : null
   }).select("*").single();
   if (recordError || !communication) return NextResponse.json({ error: "No fue posible registrar la apertura de WhatsApp." }, { status: 500 });
-  await supabase.from("proposals").update({ status: "enviada", sent_at: new Date().toISOString() }).eq("id", parsed.data.proposalId);
+  if (realSendingEnabled) await supabase.from("proposals").update({ status: "enviada", sent_at: createdAt }).eq("id", parsed.data.proposalId);
   return NextResponse.json({ communication, whatsappUrl, mode: provider === "meta_whatsapp" ? "official" : "link" });
 }

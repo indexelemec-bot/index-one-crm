@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgeDollarSign, Bot, BookOpenCheck, Building2, CheckSquare2, ChevronDown, FileSignature, Gauge, KanbanSquare, ListChecks, LogOut, Menu, MessageSquareText, Plus, ScrollText, Settings, UserRoundCog, X } from "lucide-react";
+import { BadgeDollarSign, BarChart3, Bot, BookOpenCheck, Building2, CheckSquare2, ChevronDown, FileSignature, Gauge, KanbanSquare, ListChecks, LogOut, Menu, MessageSquareText, Plus, ScrollText, Settings, UserRoundCog, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { roleLabels } from "@/lib/constants";
 import { useCrm } from "@/components/crm-provider";
@@ -18,6 +18,7 @@ const nav = [
   { href: "/contratos", label: "Contratos", icon: FileSignature },
   { href: "/comunicaciones", label: "Comunicaciones", icon: MessageSquareText },
   { href: "/ventas", label: "Ventas y comisiones", icon: BadgeDollarSign },
+  { href: "/reportes", label: "Reportes semanales", icon: BarChart3 },
   { href: "/academia", label: "Academia B2B", icon: BookOpenCheck },
   { href: "/agentes", label: "ARM · Agentes", icon: Bot },
   { href: "/usuarios", label: "Usuarios", icon: UserRoundCog }

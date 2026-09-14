@@ -5,15 +5,18 @@ import { createClient } from "@/lib/supabase/server";
 const schema = z.object({ opportunityId: z.string().uuid() });
 
 type TimelineItem = {
-  kind: "communication" | "internal_message" | "activity" | "task" | "proposal" | "assignment" | "scheduled" | "contract";
+  kind: "communication" | "internal_message" | "activity" | "task" | "proposal" | "assignment" | "scheduled" | "contract" | "stage_change";
   id: string;
   at: string;
   data: Record<string, unknown>;
 };
 
 export async function GET(request: Request) {
-  const parsed = schema.safeParse(Object.fromEntries(new URL(request.url).searchParams).opportunityId);
+  const startedAt = Date.now();
+  const requestId = request.headers.get("x-vercel-id") ?? crypto.randomUUID();
+  const parsed = schema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
   if (!parsed.success) return NextResponse.json({ error: "Oportunidad inválida." }, { status: 400 });
+  console.log(JSON.stringify({ level: "info", message: "timeline_started", requestId, opportunityId: parsed.data.opportunityId }));
 
   const supabase = await createClient();
   if (!supabase) return NextResponse.json({ error: "Supabase no está configurado." }, { status: 503 });
@@ -27,7 +30,7 @@ export async function GET(request: Request) {
     .single();
   if (opportunityError || !opportunity) return NextResponse.json({ error: "Oportunidad no disponible." }, { status: 404 });
 
-  const [communicationsResult, internalMessagesResult, activitiesResult, tasksResult, proposalsResult, assignmentsResult, scheduledResult, contractsResult] = await Promise.all([
+  const [communicationsResult, internalMessagesResult, activitiesResult, tasksResult, proposalsResult, assignmentsResult, scheduledResult, contractsResult, stageHistoryResult] = await Promise.all([
     supabase.from("communications")
       .select("id,stakeholder_id,channel,direction,subject,body_text,status,agent_name_snapshot,message_type,media_name,transcription_text,transcription_status,created_at,sent_at,delivered_at,opened_at")
       .eq("opportunity_id", opportunity.id)
@@ -66,15 +69,25 @@ export async function GET(request: Request) {
     supabase.from("contracts")
       .select("id,status,client_legal_name,effective_date,signature_date,expiration_date,current_version,created_at,updated_at")
       .eq("opportunity_id", opportunity.id)
-      .limit(1)
+      .limit(1),
+    supabase.from("opportunity_stage_history")
+      .select("id,previous_stage,new_stage,moved_by,owner_id_snapshot,moved_at,previous_stage_duration_seconds,change_note")
+      .eq("opportunity_id", opportunity.id)
+      .order("moved_at", { ascending: false })
+      .limit(200)
   ]);
 
-  const results = [communicationsResult, internalMessagesResult, activitiesResult, tasksResult, proposalsResult, assignmentsResult, scheduledResult, contractsResult];
-  const failed = results.find((result) => result.error);
-  if (failed?.error) {
-    console.error("Commercial timeline query failed", { code: failed.error.code, details: failed.error.details });
+  const namedResults = [
+    ["communications", communicationsResult], ["internalMessages", internalMessagesResult], ["activities", activitiesResult],
+    ["tasks", tasksResult], ["proposals", proposalsResult], ["assignments", assignmentsResult], ["scheduled", scheduledResult],
+    ["contracts", contractsResult], ["stageChanges", stageHistoryResult]
+  ] as const;
+  const failures = namedResults.flatMap(([source, result]) => result.error ? [{ source, code: result.error.code, details: result.error.details }] : []);
+  if (failures.length === namedResults.length) {
+    console.error(JSON.stringify({ level: "error", message: "timeline_all_sources_failed", requestId, failures, ms: Date.now() - startedAt }));
     return NextResponse.json({ error: "No fue posible consultar el historial comercial." }, { status: 500 });
   }
+  if (failures.length) console.warn(JSON.stringify({ level: "warning", message: "timeline_partial_sources", requestId, failures }));
 
   const timeline: TimelineItem[] = [
     ...(communicationsResult.data ?? []).map((item) => ({
@@ -124,8 +137,16 @@ export async function GET(request: Request) {
       id: item.id,
       at: item.updated_at ?? item.created_at,
       data: item
+    })),
+    ...(stageHistoryResult.data ?? []).map((item) => ({
+      kind: "stage_change" as const,
+      id: item.id,
+      at: item.moved_at,
+      data: item
     }))
   ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+  console.log(JSON.stringify({ level: "info", message: "timeline_completed", requestId, opportunityId: opportunity.id, total: timeline.length, partialFailures: failures.length, ms: Date.now() - startedAt }));
 
   return NextResponse.json({
     timeline,
@@ -139,7 +160,9 @@ export async function GET(request: Request) {
       proposals: proposalsResult.data?.length ?? 0,
       assignments: assignmentsResult.data?.length ?? 0,
       scheduled: scheduledResult.data?.length ?? 0,
-      contracts: contractsResult.data?.length ?? 0
-    }
+      contracts: contractsResult.data?.length ?? 0,
+      stageChanges: stageHistoryResult.data?.length ?? 0
+    },
+    warnings: failures.map((failure) => failure.source)
   });
 }

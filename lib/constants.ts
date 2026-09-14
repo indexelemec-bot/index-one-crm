@@ -1,7 +1,7 @@
 import type { AccountType, OpportunityStage, UserRole } from "@/types/domain";
 
 export const stageLabels: Record<OpportunityStage, string> = {
-  prospecto_identificado: "Prospecto identificado", problema_detectado: "Problema detectado", contacto_decisor: "Contacto con decisor", diagnostico: "Diagnóstico", solucion_recomendada: "Solución recomendada", presentacion: "Presentación", propuesta: "Propuesta", negociacion: "Negociación", aprobacion: "Aprobación", contrato_transicion: "Contrato y transición", cliente_activo: "Cliente activo", perdida: "Oportunidad perdida"
+  prospecto_identificado: "Prospecto identificado", problema_detectado: "Problema detectado", contacto_decisor: "Contacto con decisor", diagnostico: "Diagnóstico", solucion_recomendada: "Solución recomendada", presentacion: "Presentación", propuesta: "Propuesta por preparar", propuesta_enviada: "Propuesta enviada", negociacion: "Negociación", aprobacion: "Aprobación", contrato_transicion: "Contrato y transición", cliente_activo: "Cliente activo", perdida: "Oportunidad perdida"
 };
 
 // La probabilidad representa cercanía al cierre, no una reducción del valor económico del prospecto.
@@ -14,6 +14,7 @@ export const stageClosingProbability: Record<OpportunityStage, number> = {
   solucion_recomendada: 40,
   presentacion: 50,
   propuesta: 65,
+  propuesta_enviada: 72,
   negociacion: 80,
   aprobacion: 90,
   contrato_transicion: 95,

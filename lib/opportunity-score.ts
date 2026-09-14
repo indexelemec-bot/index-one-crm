@@ -15,6 +15,7 @@ const stageScores: Record<Opportunity["stage"], number> = {
   solucion_recomendada: 48,
   presentacion: 58,
   propuesta: 67,
+  propuesta_enviada: 72,
   negociacion: 76,
   aprobacion: 87,
   contrato_transicion: 94,
