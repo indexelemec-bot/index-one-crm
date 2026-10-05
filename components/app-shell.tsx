@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BadgeDollarSign, BarChart3, Bot, BookOpenCheck, Building2, CheckSquare2, ChevronDown, FileSignature, Gauge, KanbanSquare, ListChecks, LogOut, Menu, MessageSquareText, Plus, ScrollText, Settings, UserRoundCog, X } from "lucide-react";
+import { BadgeDollarSign, BarChart3, Bot, BookOpenCheck, Building2, CheckSquare2, ChevronDown, ClipboardList, FileSignature, Gauge, KanbanSquare, ListChecks, LogOut, Menu, MessageSquareText, Plus, ScrollText, Settings, UserRoundCog, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { roleLabels } from "@/lib/constants";
 import { useCrm } from "@/components/crm-provider";
@@ -12,6 +12,7 @@ import { mapProfile } from "@/lib/supabase/mappers";
 const nav = [
   { href: "/dashboard", label: "Centro comercial", icon: Gauge },
   { href: "/prospectos", label: "Prospectos", icon: Building2 },
+  { href: "/captacion", label: "Captación web", icon: ClipboardList },
   { href: "/embudo", label: "Embudo B2B", icon: KanbanSquare },
   { href: "/tareas", label: "Tareas", icon: CheckSquare2 },
   { href: "/propuestas", label: "Propuestas", icon: ScrollText },
