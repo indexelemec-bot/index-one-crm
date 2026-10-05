@@ -21,6 +21,7 @@ export type ContractValues = {
 };
 
 const xmlEscape = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+export const CORPORATE_CONTRACT_ADDRESS = "Dir. C. General Domingo Mallol no. 46, segundo nivel, Distrito Nacional, Santo Domingo";
 const monthNames = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const units = ["cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve", "veinte", "veintiuno", "veintidós", "veintitrés", "veinticuatro", "veinticinco", "veintiséis", "veintisiete", "veintiocho", "veintinueve"];
 
@@ -43,6 +44,13 @@ export async function buildContract(values: ContractValues) {
   const documentFile = zip.file("word/document.xml");
   if (!documentFile) throw new Error("Plantilla de contrato inválida.");
   let xml = await documentFile.async("string");
+  // Keep the signed master immutable. New documents receive the current corporate
+  // address while previously issued files remain byte-for-byte untouched.
+  xml = xml
+    .replace(" Calle Gustavo Mejía Ricart No. 237, Plaza Joabra Local No. L2-B, ", ` ${CORPORATE_CONTRACT_ADDRESS}`)
+    .replace(">Sector </w:t>", "></w:t>")
+    .replace(">Los Prados</w:t>", "></w:t>")
+    .replace(">, Santo Domingo, Distrito Nacional; válidamente </w:t>", ">; válidamente </w:t>");
   let index = 0;
   xml = xml.replace(/<w:r\b[\s\S]*?<\/w:r>/g, (run) => {
     if (!run.includes("<w:highlight") || !run.includes("<w:t")) return run;
