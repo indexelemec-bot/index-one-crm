@@ -10,3 +10,5 @@ coverage/
 tmp/
 .vercel
 .env*
+*.tsbuildinfo
+supabase/.temp/

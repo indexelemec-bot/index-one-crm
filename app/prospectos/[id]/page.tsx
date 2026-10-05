@@ -21,6 +21,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useCrm } from "@/components/crm-provider";
 import { Modal, StagePill } from "@/components/ui";
+import { MarketingFormResponses } from "@/components/marketing-form-responses";
 import { accountTypeLabels, formatCurrency, roleLabels } from "@/lib/constants";
 import { calculateOpportunityScore } from "@/lib/opportunity-score";
 import {
@@ -596,6 +597,7 @@ export default function ProspectDetail() {
           )}
         </aside>
       </div>
+      <MarketingFormResponses accountId={account.id} />
       {classificationOpen && (
         <Modal title="Clasificación del proyecto" description="Define el tipo de propuesta y el término correcto para sus unidades." onClose={() => setClassificationOpen(false)}>
           <form onSubmit={submitClassification}>
