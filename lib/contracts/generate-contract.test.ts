@@ -3,7 +3,7 @@ import JSZip from "jszip";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildContract } from "@/lib/contracts/generate-contract";
+import { buildContract, CORPORATE_CONTRACT_ADDRESS } from "@/lib/contracts/generate-contract";
 
 describe("contrato corporativo", () => {
   it("genera una copia Word sin modificar el maestro", async () => {
@@ -11,7 +11,11 @@ describe("contrato corporativo", () => {
     const auditDirectory = await mkdtemp(join(tmpdir(), "index-one-contract-audit-"));
     await writeFile(join(auditDirectory, "generated-test.docx"), bytes);
     const zip = await JSZip.loadAsync(bytes); const xml = await zip.file("word/document.xml")!.async("string");
+    const visibleText = xml.replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
     expect(xml).toContain("TORRE PRUEBA"); expect(xml).toContain("TREINTA Y CINCO MIL PESOS DOMINICANOS CON 00/100"); expect(xml).toMatch(/35[.,]000[.,]00/); expect(xml).toContain("ANA PÉREZ"); expect(xml).toContain("15"); expect(xml).toContain("agosto");
+    expect(visibleText).toContain(CORPORATE_CONTRACT_ADDRESS);
+    expect(visibleText).not.toContain("Calle Gustavo Mejía Ricart");
+    expect(visibleText).not.toContain("Los Prados");
     await rm(auditDirectory, { recursive: true, force: true });
   });
 });
