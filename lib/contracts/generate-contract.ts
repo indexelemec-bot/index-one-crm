@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { dominicanPesosInWords } from "@/lib/spanish-number";
+import { applyCurrentCompanyAddress, cleanContractPackage, cleanWordMarkup } from "@/lib/contracts/clean-docx";
 
 export type ContractValues = {
   opportunityId: string;
@@ -33,11 +34,17 @@ function yearTailWords(year: number) {
   return unit ? `${tens[ten]} y ${units[unit]}` : tens[ten];
 }
 
+function dayWords(day: number) {
+  if (day < 30) return units[day];
+  return day === 30 ? "treinta" : "treinta y uno";
+}
+
 export async function buildContract(values: ContractValues) {
   const assembly = new Date(`${values.assemblyDate}T12:00:00Z`);
   const signature = new Date(`${values.signatureDate}T12:00:00Z`);
   const monthlyFeeWords = dominicanPesosInWords(values.monthlyFee);
-  const replacements = [values.clientLegalName, values.clientRnc, values.clientAddress, values.city, values.sector, values.representativeName, values.representativeGenderEnding, values.representativeId, values.clientLegalName, values.clientLegalName, monthNames[assembly.getUTCMonth()], yearTailWords(assembly.getUTCFullYear()), String(assembly.getUTCFullYear()).slice(-1), monthlyFeeWords, new Intl.NumberFormat("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(values.monthlyFee), String(signature.getUTCDate()).padStart(2, "0"), " ", `${monthNames[signature.getUTCMonth()]} `, "del ", "año dos mil ", yearTailWords(signature.getUTCFullYear()), "(", "20", String(signature.getUTCFullYear()).slice(-2), "). _", values.representativeName, values.representativeGenderEnding === "a" ? "a" : "e", values.clientLegalName];
+  const signatureDay = String(signature.getUTCDate()).padStart(2, "0");
+  const replacements = [values.clientLegalName, values.clientRnc, values.clientAddress, values.city, values.sector, values.representativeName, values.representativeGenderEnding, values.representativeId, values.clientLegalName, values.clientLegalName, monthNames[assembly.getUTCMonth()], yearTailWords(assembly.getUTCFullYear()), String(assembly.getUTCFullYear()).slice(-1), monthlyFeeWords, new Intl.NumberFormat("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(values.monthlyFee), `${dayWords(signature.getUTCDate())} (${signatureDay})`, " ", `${monthNames[signature.getUTCMonth()]} `, "del ", "año dos mil ", yearTailWords(signature.getUTCFullYear()), "(", "20", String(signature.getUTCFullYear()).slice(-2), "). _", values.representativeName, values.representativeGenderEnding === "a" ? "a" : "e", values.clientLegalName];
   const contractMasterBase64 = (await readFile(path.join(process.cwd(), "private/templates/contract-master.b64"), "utf8")).trim();
   const zip = await JSZip.loadAsync(Buffer.from(contractMasterBase64, "base64"));
   const documentFile = zip.file("word/document.xml");
@@ -51,7 +58,11 @@ export async function buildContract(values: ContractValues) {
     return run.replace(/(<w:t\b[^>]*>)[\s\S]*?(<\/w:t>)/, `$1${xmlEscape(replacement)}$2`);
   });
   xml = xml.replace("<w:t>xx</w:t>", `<w:t>${String(assembly.getUTCDate()).padStart(2, "0")}</w:t>`);
+  xml = xml.replace('<w:t xml:space="preserve">día del mes </w:t>', '<w:t xml:space="preserve">días del mes </w:t>');
+  const notarization = `Yo________________________________, Notario Público para los del número del Distrito Nacional, matrícula ____________, CERTIFICO Y DOY FE, que las firmas que figuran precedentemente fueron puestas por las personas descritas al pie de estas, por lo que al presente documento debe dársele entero crédito y fe, en el Distrito Nacional, a los ${dayWords(signature.getUTCDate())} (${String(signature.getUTCDate()).padStart(2, "0")}) días del mes de ${monthNames[signature.getUTCMonth()]} del año dos mil ${yearTailWords(signature.getUTCFullYear())} (${signature.getUTCFullYear()}).`;
+  xml = xml.replace(/<w:t>Yo________________________________,[\s\S]*?<\/w:t>/, `<w:t>${xmlEscape(notarization)}</w:t>`);
   if (index < replacements.length) throw new Error(`La plantilla solo expuso ${index} de ${replacements.length} campos esperados.`);
-  zip.file("word/document.xml", xml);
+  zip.file("word/document.xml", applyCurrentCompanyAddress(cleanWordMarkup(xml)));
+  await cleanContractPackage(zip);
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }

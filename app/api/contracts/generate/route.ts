@@ -2,6 +2,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { buildContract } from "@/lib/contracts/generate-contract";
+import { buildContractPdf } from "@/lib/contracts/generate-pdf";
 import { dominicanPesosInWords } from "@/lib/spanish-number";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,6 +14,7 @@ const schema = z.object({
   representativeName: z.string().trim().min(3), representativeId: z.string().trim().min(5),
   representativeGenderEnding: z.enum(["o", "a"]), assemblyDate: z.string().date(), monthlyFee: z.number().positive(),
   signatureDate: z.string().date(), changeReason: z.string().trim().min(3), negotiatedTerms: z.string().trim().max(12000).optional(),
+  outputFormat: z.enum(["docx", "pdf"]).default("docx"),
 });
 
 const contractMasterSha256 = "1297909bcb760dd41f35dedc6468d72c1d650fd94f08a24600ee0afd877a6f74";
@@ -51,6 +53,12 @@ export async function POST(request: Request) {
   const path = `${opportunity.id}/${contract.id}/v${version}-contrato-${safeName}.docx`;
   const upload = await admin.storage.from("contract-files").upload(path, bytes, { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", upsert: false });
   if (upload.error) return NextResponse.json({ error: upload.error.message }, { status: 500 });
+  const pdfPath = path.replace(/\.docx$/, ".pdf");
+  if (parsed.data.outputFormat === "pdf") {
+    const pdfBytes = await buildContractPdf(bytes);
+    const pdfUpload = await admin.storage.from("contract-files").upload(pdfPath, pdfBytes, { contentType: "application/pdf", upsert: true });
+    if (pdfUpload.error) return NextResponse.json({ error: pdfUpload.error.message }, { status: 500 });
+  }
   const snapshot = { ...parsed.data, monthlyFeeWords, effectiveDate: dates.effectiveDate, expirationDate: dates.expirationDate };
   const inserted = await supabase.from("contract_versions").insert({
     contract_id: contract.id, version, monthly_fee: parsed.data.monthlyFee, change_reason: parsed.data.changeReason,
@@ -66,6 +74,7 @@ export async function POST(request: Request) {
   }).eq("id", contract.id);
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
   await supabase.from("contract_status_history").insert({ contract_id: contract.id, previous_status: contract.status, new_status: "revision_cliente", notes: parsed.data.changeReason, changed_by: authData.user.id });
-  const signed = await admin.storage.from("contract-files").createSignedUrl(path, 60 * 15);
-  return NextResponse.json({ contractId: contract.id, version, monthlyFeeWords, signedUrl: signed.data?.signedUrl });
+  const selectedPath = parsed.data.outputFormat === "pdf" ? pdfPath : path;
+  const signed = await admin.storage.from("contract-files").createSignedUrl(selectedPath, 60 * 15);
+  return NextResponse.json({ contractId: contract.id, version, monthlyFeeWords, format: parsed.data.outputFormat, signedUrl: signed.data?.signedUrl });
 }
